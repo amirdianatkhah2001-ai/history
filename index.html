@@ -140,6 +140,17 @@ body { display:flex; flex-direction:column; }
 #ep-title { font-size:15px; font-weight:700; color:#f0c060; margin-bottom:4px; }
 #ep-year { font-size:10px; color:#3e6080; margin-bottom:9px; }
 #ep-desc { font-size:11px; color:#90a8c0; line-height:1.65; }
+
+/* ── MAP EVENT MARKERS ────────────────────────────────────── */
+.ev-marker { cursor:pointer; }
+.ev-marker circle.bg { transition: r .15s; }
+.ev-marker:hover circle.bg { r:10; }
+@keyframes pulse-ring {
+  0%   { r:9;  opacity:.8; }
+  70%  { r:16; opacity:0;  }
+  100% { r:9;  opacity:0;  }
+}
+.ev-marker.now circle.pulse { animation: pulse-ring 1.4s ease-out infinite; }
 </style>
 </head>
 <body>
@@ -173,6 +184,8 @@ body { display:flex; flex-direction:column; }
       <button class="cb on cat-btn" data-cat="Disaster">Disaster</button>
       <button class="cb on cat-btn" data-cat="Culture">Culture</button>
       <button class="cb on cat-btn" data-cat="Exploration">Exploration</button>
+      <div class="sep"></div>
+      <button class="cb on" id="mapev-btn">📍 Map Events</button>
       <input type="text" id="search-input" placeholder="🔍 Search events…">
     </div>
     <div id="map-wrap">
@@ -207,11 +220,12 @@ body { display:flex; flex-direction:column; }
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════
-//  DATA – CIVILIZATIONS
+//  DATA – CIVILIZATIONS / HISTORICAL POLITIES
 // ═══════════════════════════════════════════════════════════
 // Polygon coordinates: [longitude, latitude] (WGS-84)
-// Each polygon is an approximate peak-extent territory.
+// Territories reflect approximate peak extent.
 const CIVS = [
+  // ── ORIGINAL 15 ────────────────────────────────────────
   {
     id:'roman', name:'Roman Empire', start:-27, end:476,
     color:'#e74c3c',
@@ -259,13 +273,9 @@ const CIVS = [
     color:'#c0392b',
     desc:'The largest empire in history at its peak, covering ~24% of Earth\'s land area. It spread the English language, common law, and parliamentary democracy across every continent.',
     geo:{type:'MultiPolygon', coordinates:[
-      // British Isles
       [[[-8,50],[-5,56],[-1,58],[2,54],[2,52],[-2,50],[-5,50],[-8,50]]],
-      // Indian subcontinent (British India — includes modern Pakistan & Bangladesh)
       [[[60,24],[68,22],[76,8],[80,8],[86,14],[92,22],[94,24],[90,28],[80,34],[72,34],[60,30],[60,24]]],
-      // Australia
       [[[114,-36],[122,-26],[132,-14],[140,-18],[150,-24],[154,-30],[148,-40],[136,-40],[124,-36],[116,-36],[114,-36]]],
-      // Canada (approx)
       [[[-140,60],[-138,70],[-80,72],[-52,48],[-66,44],[-82,44],[-92,48],[-100,50],[-120,50],[-132,56],[-140,60]]]
     ]}
   },
@@ -365,6 +375,377 @@ const CIVS = [
       [124,38],[126,42],[128,42],[130,40],[130,36],
       [128,34],[126,34],[124,36],[124,38]
     ]]}
+  },
+
+  // ── ADDITIONAL POLITIES ─────────────────────────────────
+  // ANCIENT NEAR EAST & AFRICA
+  {
+    id:'egypt-anc', name:'Ancient Egypt', start:-3100, end:-30,
+    color:'#d4a017',
+    desc:'One of the world\'s oldest and most enduring civilisations, spanning over 3,000 years along the Nile. Ancient Egypt gave the world pyramids, hieroglyphic writing, and a sophisticated administrative state.',
+    geo:{type:'Polygon', coordinates:[[
+      [22,22],[34,22],[38,28],[36,32],[34,33],[30,31],
+      [26,31],[22,30],[20,26],[22,22]
+    ]]}
+  },
+  {
+    id:'babylon', name:'Neo-Babylonian Empire', start:-625, end:-539,
+    color:'#8b6914',
+    desc:'The last great Mesopotamian empire, reaching its height under Nebuchadnezzar II who built the Hanging Gardens and conquered Jerusalem. It fell to Persia in 539 BC.',
+    geo:{type:'Polygon', coordinates:[[
+      [36,32],[38,38],[44,38],[50,36],[50,30],[44,28],
+      [38,30],[36,32]
+    ]]}
+  },
+  {
+    id:'assyria', name:'Assyrian Empire', start:-900, end:-609,
+    color:'#a0522d',
+    desc:'The most powerful empire of its day, the Neo-Assyrian Empire stretched from Mesopotamia to Egypt. Known for military ferocity and advanced siege warfare, it was eventually destroyed by a Babylonian-Median coalition.',
+    geo:{type:'Polygon', coordinates:[[
+      [34,32],[36,40],[44,42],[52,38],[54,34],[50,28],
+      [44,28],[38,30],[34,32]
+    ]]}
+  },
+  {
+    id:'carthage', name:'Carthaginian Empire', start:-814, end:-146,
+    color:'#cd853f',
+    desc:'Founded by Phoenician colonists from Tyre, Carthage dominated western Mediterranean trade. Its general Hannibal nearly destroyed Rome before the Punic Wars ended Carthaginian power.',
+    geo:{type:'MultiPolygon', coordinates:[
+      [[[-6,30],[2,33],[8,34],[14,34],[20,32],[24,32],[14,28],[8,28],[2,28],[-4,28],[-6,30]]],
+      [[[-6,36],[-2,40],[2,40],[4,38],[0,36],[-4,36],[-6,36]]],
+      [[[12,37],[14,38],[15,38],[14,37],[12,37]]]
+    ]}
+  },
+  {
+    id:'greece-anc', name:'Ancient Greece', start:-800, end:-146,
+    color:'#4169e1',
+    desc:'Ancient Greece was not one state but a mosaic of city-states sharing language and culture. Athens, Sparta, Corinth and others created enduring legacies in philosophy, art, democracy, and science.',
+    geo:{type:'Polygon', coordinates:[[
+      [20,36],[20,42],[22,42],[24,42],[26,40],[28,40],
+      [28,36],[26,34],[22,34],[20,36]
+    ]]}
+  },
+  {
+    id:'alexander', name:"Alexander's Empire", start:-336, end:-301,
+    color:'#6a5acd',
+    desc:'In just thirteen years Alexander of Macedon created the largest empire the ancient world had seen, stretching from Greece to northwestern India. His conquests spread Greek language and culture across three continents.',
+    geo:{type:'Polygon', coordinates:[[
+      [12,38],[20,46],[28,46],[36,46],[52,44],[68,42],
+      [74,36],[72,26],[64,24],[52,22],[44,26],[36,28],
+      [28,30],[22,36],[16,38],[12,38]
+    ]]}
+  },
+  {
+    id:'seleucid', name:'Seleucid Empire', start:-312, end:-63,
+    color:'#708090',
+    desc:'The largest of the successor states to Alexander\'s empire, the Seleucids controlled the Middle East from Syria to Bactria. Their realm was a major conduit for Hellenistic culture across Asia.',
+    geo:{type:'Polygon', coordinates:[[
+      [26,36],[36,44],[52,44],[68,40],[72,34],
+      [64,24],[52,22],[40,22],[32,26],[26,32],[26,36]
+    ]]}
+  },
+  {
+    id:'ptolemaic', name:'Ptolemaic Egypt', start:-305, end:-30,
+    color:'#20b2aa',
+    desc:'The Ptolemaic dynasty, founded by one of Alexander\'s generals, ruled Egypt for nearly three centuries. Alexandria became the intellectual capital of the Hellenistic world, home to its famous Library.',
+    geo:{type:'Polygon', coordinates:[[
+      [22,22],[34,22],[38,28],[36,32],[34,33],[30,31],
+      [26,31],[22,30],[20,26],[22,22]
+    ]]}
+  },
+  // ANCIENT MIDDLE EAST
+  {
+    id:'parthia', name:'Parthian Empire', start:-247, end:224,
+    color:'#556b2f',
+    desc:'The Parthian Empire, ruled by the Arsacid dynasty, controlled the Iranian plateau and Mesopotamia for nearly 500 years. Its heavy cavalry ("cataphracts") were feared throughout the ancient world.',
+    geo:{type:'Polygon', coordinates:[[
+      [44,36],[56,44],[68,44],[72,38],[74,28],
+      [66,22],[56,22],[48,26],[42,30],[44,36]
+    ]]}
+  },
+  {
+    id:'sasanian', name:'Sasanian Empire', start:224, end:651,
+    color:'#8fbc8f',
+    desc:'The Sasanian Empire was the last pre-Islamic Iranian empire, a rival of Rome and Byzantium for four centuries. It was conquered by the Islamic Caliphate in 651, transforming the Middle East permanently.',
+    geo:{type:'Polygon', coordinates:[[
+      [36,36],[48,44],[62,46],[72,38],[74,26],
+      [66,20],[56,20],[44,26],[38,32],[36,36]
+    ]]}
+  },
+  // ISLAMIC WORLD
+  {
+    id:'umayyad', name:'Umayyad Caliphate', start:661, end:750,
+    color:'#2e8b57',
+    desc:'The Umayyad Caliphate was the second great Islamic caliphate, stretching from Spain to Central Asia. Under the Umayyads Islam spread rapidly, and Arabic became the administrative language of a vast civilisation.',
+    geo:{type:'Polygon', coordinates:[[
+      [-6,30],[2,32],[10,36],[20,34],[32,32],[42,34],
+      [48,44],[62,46],[68,38],[60,20],[48,16],[42,12],
+      [34,12],[28,16],[22,14],[12,16],[6,24],[2,28],
+      [-4,30],[-6,30]
+    ]]}
+  },
+  {
+    id:'abbasid', name:'Abbasid Caliphate', start:750, end:1258,
+    color:'#228b22',
+    desc:'The Abbasid Caliphate moved the capital to Baghdad and presided over the Islamic Golden Age — a period of extraordinary achievement in mathematics, astronomy, medicine, and philosophy.',
+    geo:{type:'Polygon', coordinates:[[
+      [28,32],[38,40],[52,44],[64,44],[72,36],[66,20],
+      [56,18],[44,18],[36,20],[28,24],[24,28],[28,32]
+    ]]}
+  },
+  // MEDIEVAL EUROPE
+  {
+    id:'carolingian', name:'Carolingian Empire', start:768, end:843,
+    color:'#4682b4',
+    desc:'Charlemagne\'s Carolingian Empire unified most of Western Europe for the first time since Rome\'s fall. It fostered the Carolingian Renaissance and created the feudal foundations of medieval European society.',
+    geo:{type:'Polygon', coordinates:[[
+      [-4,44],[2,52],[14,54],[18,50],[18,44],
+      [14,40],[8,40],[2,42],[0,44],[-4,44]
+    ]]}
+  },
+  {
+    id:'holy-roman', name:'Holy Roman Empire', start:962, end:1806,
+    color:'#b8860b',
+    desc:'A complex political confederation of Central European territories, the Holy Roman Empire was famously described as neither holy, nor Roman, nor an empire. At its height it dominated Central Europe for eight centuries.',
+    geo:{type:'Polygon', coordinates:[[
+      [6,48],[8,54],[14,56],[22,54],[24,50],[20,46],
+      [14,44],[8,44],[6,48]
+    ]]}
+  },
+  {
+    id:'kievan-rus', name:'Kievan Rus', start:880, end:1240,
+    color:'#2f4f4f',
+    desc:'Kievan Rus was a medieval federation of East Slavic and Finno-Ugric peoples centred on Kiev. It adopted Orthodox Christianity from Byzantium, shaping the cultures of modern Russia, Ukraine, and Belarus.',
+    geo:{type:'Polygon', coordinates:[[
+      [24,46],[28,58],[38,62],[44,58],[44,52],
+      [40,46],[34,44],[28,46],[24,46]
+    ]]}
+  },
+  // AFRICA
+  {
+    id:'mali', name:'Mali Empire', start:1235, end:1600,
+    color:'#daa520',
+    desc:'The Mali Empire was one of the largest and wealthiest states in medieval Africa, controlling trans-Saharan gold and salt trade. Mansa Musa\'s legendary pilgrimage to Mecca in 1324 distributed so much gold it caused inflation across the Middle East.',
+    geo:{type:'Polygon', coordinates:[[
+      [-16,8],[-8,14],[0,16],[4,16],[8,12],[8,8],
+      [4,4],[0,6],[-8,8],[-16,8]
+    ]]}
+  },
+  {
+    id:'songhai', name:'Songhai Empire', start:1464, end:1591,
+    color:'#ff8c00',
+    desc:'The Songhai Empire was the largest empire in West African history at its peak under Askia Muhammad. Timbuktu became a great centre of Islamic scholarship and commerce before Moroccan forces destroyed the empire in 1591.',
+    geo:{type:'Polygon', coordinates:[[
+      [-4,10],[4,16],[12,16],[14,12],[12,8],
+      [6,6],[0,8],[-4,10]
+    ]]}
+  },
+  {
+    id:'aksum', name:'Aksumite Kingdom', start:100, end:940,
+    color:'#cd5c5c',
+    desc:'The Aksumite Kingdom was a major trading empire in the Horn of Africa, one of the great powers of the ancient world alongside Rome, Persia, and China. It was among the first states to officially adopt Christianity.',
+    geo:{type:'Polygon', coordinates:[[
+      [36,8],[40,14],[44,16],[48,12],[46,8],
+      [42,4],[38,4],[36,8]
+    ]]}
+  },
+  {
+    id:'ethiopia', name:'Ethiopian Empire', start:1270, end:1974,
+    color:'#ff4500',
+    desc:'The Solomonid dynasty claimed descent from King Solomon and the Queen of Sheba, ruling Ethiopia for 700 years. Ethiopia was the only African country to successfully resist European colonisation, defeating Italy at the Battle of Adwa in 1896.',
+    geo:{type:'Polygon', coordinates:[[
+      [34,4],[38,14],[44,16],[46,10],[44,4],
+      [40,2],[36,2],[34,4]
+    ]]}
+  },
+  // SOUTHEAST & EAST ASIA
+  {
+    id:'khmer', name:'Khmer Empire', start:802, end:1431,
+    color:'#9932cc',
+    desc:'At its peak the Khmer Empire controlled much of mainland Southeast Asia. Its capital Angkor was one of the largest pre-industrial cities in the world, and Angkor Wat remains the world\'s largest religious monument.',
+    geo:{type:'Polygon', coordinates:[[
+      [100,10],[104,20],[108,22],[110,18],[108,10],
+      [104,6],[100,8],[100,10]
+    ]]}
+  },
+  {
+    id:'majapahit', name:'Majapahit Empire', start:1293, end:1527,
+    color:'#ff1493',
+    desc:'The Majapahit Empire was a maritime empire based in Java that controlled much of the Indonesian archipelago. It is considered the last major Hindu-Buddhist empire of Southeast Asia.',
+    geo:{type:'MultiPolygon', coordinates:[
+      [[[106,-8],[108,-6],[112,-6],[114,-8],[110,-10],[106,-8]]],
+      [[[108,0],[114,4],[118,4],[118,0],[114,-2],[108,0]]]
+    ]}
+  },
+  {
+    id:'japan-feudal', name:'Feudal Japan', start:700, end:1868,
+    color:'#ff6b6b',
+    desc:'Japan\'s long feudal era saw rule by successive shoguns — military dictators — while the emperor remained a symbolic figurehead. This period produced samurai culture, Zen Buddhism, and distinctive Japanese arts.',
+    geo:{type:'Polygon', coordinates:[[
+      [130,32],[132,34],[136,36],[140,40],[142,44],
+      [140,44],[136,40],[132,34],[130,32]
+    ]]}
+  },
+  // AMERICAS
+  {
+    id:'maya', name:'Maya Civilisation', start:-2000, end:1500,
+    color:'#00ced1',
+    desc:'The Maya developed the most sophisticated writing system in the pre-Columbian Americas, along with advanced mathematics including the concept of zero. Their astronomical observations and calendar systems remain impressive to this day.',
+    geo:{type:'Polygon', coordinates:[[
+      [-92,14],[-88,18],[-86,22],[-88,22],
+      [-90,20],[-92,18],[-94,16],[-92,14]
+    ]]}
+  },
+  // EARLY MODERN
+  {
+    id:'spanish', name:'Spanish Empire', start:1492, end:1898,
+    color:'#dc143c',
+    desc:'The Spanish Empire was the first truly global empire in history, controlling vast territories across the Americas, Europe, Africa, and Asia. At its peak in the 16th century it was the world\'s most powerful state.',
+    geo:{type:'MultiPolygon', coordinates:[
+      [[[-9,36],[-6,44],[-2,44],[2,44],[4,40],[2,36],[-2,36],[-9,36]]],
+      [[[-80,10],[-72,10],[-68,16],[-62,10],[-60,-10],[-66,-20],[-72,-30],[-76,-38],[-80,-30],[-82,-16],[-84,-4],[-80,10]]],
+      [[[-118,28],[-106,30],[-100,20],[-88,16],[-84,10],[-90,14],[-96,18],[-102,22],[-112,26],[-118,28]]]
+    ]}
+  },
+  {
+    id:'portuguese', name:'Portuguese Empire', start:1415, end:1822,
+    color:'#006400',
+    desc:'Portugal established the first global maritime empire, pioneering European exploration of Africa, Asia, and the Americas. It was the longest-lived of the colonial empires, enduring until 1999 when Macau was returned to China.',
+    geo:{type:'MultiPolygon', coordinates:[
+      [[[-9,36],[-9,42],[-6,42],[-6,36],[-9,36]]],
+      [[[-36,-4],[-34,-10],[-38,-18],[-44,-24],[-52,-30],[-56,-28],[-58,-20],[-56,-12],[-50,-4],[-44,0],[-36,-4]]],
+      [[[10,-4],[14,-10],[16,-16],[14,-20],[12,-18],[10,-10],[10,-4]]]
+    ]}
+  },
+  {
+    id:'safavid', name:'Safavid Persia', start:1501, end:1736,
+    color:'#9400d3',
+    desc:'The Safavid dynasty established Twelver Shia Islam as the state religion of Iran, creating a distinct Persian-Islamic identity that persists today. Isfahan under Shah Abbas the Great became one of the world\'s most beautiful cities.',
+    geo:{type:'Polygon', coordinates:[[
+      [44,36],[52,44],[64,44],[72,38],[62,26],
+      [56,22],[46,24],[40,28],[44,36]
+    ]]}
+  },
+  {
+    id:'maratha', name:'Maratha Empire', start:1674, end:1818,
+    color:'#ff6347',
+    desc:'The Maratha Empire emerged as the dominant power in India after the Mughal decline. At its peak it controlled much of the subcontinent, and is remembered for its decentralised, confederate style of governance.',
+    geo:{type:'Polygon', coordinates:[[
+      [68,22],[72,28],[78,28],[82,24],[80,18],
+      [76,14],[72,14],[68,18],[68,22]
+    ]]}
+  },
+  {
+    id:'dutch', name:'Dutch Republic', start:1581, end:1795,
+    color:'#e67f00',
+    desc:'The Dutch Republic was the world\'s leading commercial and maritime power during the 17th century "Dutch Golden Age." Amsterdam became a global financial hub and centre of Rembrandt, Vermeer, and Spinoza.',
+    geo:{type:'Polygon', coordinates:[[
+      [4,50],[4,54],[6,54],[6,50],[4,50]
+    ]]}
+  },
+  {
+    id:'swedish', name:'Swedish Empire', start:1611, end:1721,
+    color:'#4188e1',
+    desc:'The Swedish Empire was the dominant power in Northern Europe for much of the 17th century, controlling much of the Baltic coastline. It was ended by the Great Northern War against Russia, Norway, and Denmark.',
+    geo:{type:'Polygon', coordinates:[[
+      [10,56],[12,66],[20,70],[28,70],[30,60],
+      [26,56],[18,54],[14,54],[10,56]
+    ]]}
+  },
+  {
+    id:'russia-tsardom', name:'Tsardom of Russia', start:1547, end:1721,
+    color:'#5f9ea0',
+    desc:'The Tsardom of Russia was established by Ivan the Terrible, who declared himself the first Tsar. It expanded steadily eastward across Siberia, eventually reaching the Pacific Ocean by 1639.',
+    geo:{type:'Polygon', coordinates:[[
+      [30,56],[38,68],[60,72],[90,68],[90,56],
+      [80,50],[60,50],[44,50],[36,52],[30,56]
+    ]]}
+  },
+  {
+    id:'russia-empire', name:'Russian Empire', start:1721, end:1917,
+    color:'#4a7c8a',
+    desc:'The Russian Empire was the third-largest empire in history, spanning 11 time zones across Eurasia. Under the Romanov dynasty it expanded to Alaska, Central Asia, and clashed with European powers in the Crimea and Far East.',
+    geo:{type:'Polygon', coordinates:[[
+      [28,56],[36,72],[60,76],[100,76],[140,72],
+      [168,62],[168,50],[140,44],[120,42],[100,44],
+      [80,44],[60,50],[44,50],[36,52],[28,56]
+    ]]}
+  },
+  {
+    id:'poland-lit', name:'Polish-Lithuanian Commonwealth', start:1569, end:1795,
+    color:'#e75480',
+    desc:'The Polish-Lithuanian Commonwealth was one of the largest and most populous countries in 16th–17th-century Europe, renowned for its elected monarchy and noble democracy. It was partitioned out of existence by its neighbours in the late 18th century.',
+    geo:{type:'Polygon', coordinates:[[
+      [14,50],[18,58],[26,58],[32,56],[36,50],
+      [32,46],[24,46],[18,48],[14,50]
+    ]]}
+  },
+  {
+    id:'france', name:'Kingdom of France', start:987, end:1815,
+    color:'#0066cc',
+    desc:'The Kingdom of France grew from a small domain around Paris into a major European power. Under Louis XIV the "Sun King" it became the dominant European state; the French Revolution transformed it into a modern nation-state.',
+    geo:{type:'Polygon', coordinates:[[
+      [-4,44],[-2,50],[2,52],[4,50],[8,48],
+      [8,44],[6,42],[2,42],[-2,42],[-4,44]
+    ]]}
+  },
+  // MODERN
+  {
+    id:'usa', name:'United States', start:1776, end:2026,
+    color:'#1e90ff',
+    desc:'The United States declared independence from Britain in 1776 and expanded westward to the Pacific by the mid-19th century. It became the world\'s dominant economic and military power in the 20th century.',
+    geo:{type:'Polygon', coordinates:[[
+      [-124,48],[-104,52],[-96,48],[-82,44],[-80,44],
+      [-72,44],[-70,46],[-68,46],[-74,40],[-80,34],
+      [-86,30],[-90,30],[-96,26],[-104,28],[-110,32],
+      [-120,34],[-124,40],[-124,48]
+    ]]}
+  },
+  {
+    id:'german-empire', name:'German Empire', start:1871, end:1918,
+    color:'#808080',
+    desc:'The German Empire, proclaimed after Prussia\'s defeat of France in 1871, rapidly became Europe\'s leading industrial and military power. Its aggressive foreign policy contributed directly to the outbreak of World War I.',
+    geo:{type:'Polygon', coordinates:[[
+      [6,48],[8,56],[14,56],[22,54],[24,50],
+      [20,46],[14,46],[8,46],[6,48]
+    ]]}
+  },
+  {
+    id:'imperial-japan', name:'Imperial Japan', start:1868, end:1945,
+    color:'#ff3333',
+    desc:'After the Meiji Restoration opened Japan to the world, it modernised with extraordinary speed. Imperial Japan built a vast Pacific empire, but its military ambitions led to catastrophic defeat in World War II.',
+    geo:{type:'Polygon', coordinates:[[
+      [128,32],[130,34],[134,36],[140,40],[142,44],
+      [140,44],[136,40],[132,34],[128,32]
+    ]]}
+  },
+  {
+    id:'third-reich', name:'Third Reich', start:1933, end:1945,
+    color:'#2d2d2d',
+    desc:'Nazi Germany\'s Third Reich under Adolf Hitler plunged the world into the deadliest conflict in human history. The Holocaust systematically murdered six million Jews alongside millions of others, representing one of history\'s greatest crimes.',
+    geo:{type:'Polygon', coordinates:[[
+      [6,48],[8,56],[14,56],[24,54],[28,50],
+      [26,46],[20,44],[14,44],[8,46],[6,48]
+    ]]}
+  },
+  {
+    id:'soviet-union', name:'Soviet Union', start:1922, end:1991,
+    color:'#b22222',
+    desc:'The Union of Soviet Socialist Republics was the world\'s first communist state and one of its two Cold War superpowers. It launched the first satellite and first human into space, but its economy ultimately could not sustain the arms race.',
+    geo:{type:'Polygon', coordinates:[[
+      [24,46],[28,62],[44,72],[68,76],[100,76],
+      [140,72],[168,62],[168,48],[140,42],[100,42],
+      [80,42],[60,44],[44,50],[36,52],[28,54],[24,46]
+    ]]}
+  },
+  {
+    id:'zulu', name:'Zulu Kingdom', start:1816, end:1897,
+    color:'#556b2f',
+    desc:'The Zulu Kingdom, founded by Shaka Zulu, was the most powerful state in southern Africa. Shaka transformed Zulu military tactics and politics, creating a formidable fighting force that inflicted one of history\'s worst defeats on British colonial forces at Isandlwana in 1879.',
+    geo:{type:'Polygon', coordinates:[[
+      [28,-26],[32,-26],[34,-28],[32,-30],
+      [28,-30],[26,-28],[28,-26]
+    ]]}
   }
 ];
 
@@ -377,142 +758,147 @@ const CAT_COLOR = {
   Culture:'#f1c40f',   Exploration:'#2ecc71'
 };
 
+const CAT_ICON = {
+  Political:'★', War:'✖', Religion:'✚', Science:'●',
+  Technology:'◆', Disaster:'▲', Culture:'♦', Exploration:'➤'
+};
+
 const EVENTS = [
-  {yr:-3100,cat:'Political',   title:'Unification of Egypt',
+  {yr:-3100,lon:31.9,lat:25.1, cat:'Political',   title:'Unification of Egypt',
    desc:'Pharaoh Narmer united Upper and Lower Egypt into a single kingdom, founding one of history\'s longest-lived civilisations. The unification established a powerful centralised state along the Nile that would endure for over 3,000 years.'},
-  {yr:-3000,cat:'Technology',  title:'Cuneiform Writing Invented',
+  {yr:-3000,lon:45.6,lat:31.3, cat:'Technology',  title:'Cuneiform Writing Invented',
    desc:'The Sumerians of Mesopotamia developed cuneiform script, one of humanity\'s earliest writing systems. Originally used for record-keeping and trade, it evolved into a full literary medium and spread across the ancient Near East.'},
-  {yr:-2560,cat:'Culture',     title:'Great Pyramid of Giza Built',
+  {yr:-2560,lon:31.1,lat:30.0, cat:'Culture',     title:'Great Pyramid of Giza Built',
    desc:'Pharaoh Khufu\'s Great Pyramid was completed at Giza, standing as the tallest man-made structure for over 3,800 years. The marvel required roughly 2.3 million stone blocks and the labour of tens of thousands of workers.'},
-  {yr:-2334,cat:'Political',   title:'Akkadian Empire Founded',
+  {yr:-2334,lon:44.4,lat:33.3, cat:'Political',   title:'Akkadian Empire Founded',
    desc:'Sargon of Akkad conquered the Sumerian city-states and created the world\'s first empire. His domain stretched from the Persian Gulf to the Mediterranean, setting a template for imperial governance.'},
-  {yr:-1750,cat:'Political',   title:'Code of Hammurabi',
+  {yr:-1750,lon:44.4,lat:32.5, cat:'Political',   title:'Code of Hammurabi',
    desc:'Babylonian king Hammurabi promulgated one of history\'s earliest and most complete written legal codes. The 282 laws established principles of justice, property rights, and social order.'},
-  {yr:-1200,cat:'Disaster',    title:'Bronze Age Collapse',
+  {yr:-1200,lon:36.0,lat:36.0, cat:'Disaster',    title:'Bronze Age Collapse',
    desc:'A catastrophic systems collapse destroyed virtually every major Bronze Age civilisation in the eastern Mediterranean simultaneously. Causes likely included climate change, migrations of the Sea Peoples, and trade-network disruption.'},
-  {yr:-1000,cat:'Technology',  title:'Iron Age Begins',
+  {yr:-1000,lon:35.0,lat:39.0, cat:'Technology',  title:'Iron Age Begins',
    desc:'Iron-smelting technology spread across Eurasia, replacing bronze as the primary material for weapons and tools. Iron\'s greater abundance and hardness transformed warfare, agriculture, and industry across many civilisations.'},
-  {yr:-776, cat:'Culture',     title:'First Olympic Games',
+  {yr:-776, lon:21.6,lat:37.6, cat:'Culture',     title:'First Olympic Games',
    desc:'The first recorded Olympic Games were held at Olympia, Greece, in honour of Zeus. They united the otherwise fractious Greek city-states in peaceful competition every four years.'},
-  {yr:-753, cat:'Political',   title:'Rome Founded',
+  {yr:-753, lon:12.5,lat:41.9, cat:'Political',   title:'Rome Founded',
    desc:'According to Roman tradition, Romulus founded the city of Rome on the Palatine Hill. The small pastoral settlement would grow over seven centuries into the capital of a vast Mediterranean empire.'},
-  {yr:-563, cat:'Religion',    title:'Birth of the Buddha',
+  {yr:-563, lon:83.3,lat:27.5, cat:'Religion',    title:'Birth of the Buddha',
    desc:'Siddhartha Gautama, who would become the Buddha, was born in Lumbini (present-day Nepal). His teachings on suffering and the path to enlightenment spread across Asia and shaped one of the world\'s major religions.'},
-  {yr:-551, cat:'Religion',    title:'Birth of Confucius',
+  {yr:-551, lon:117.0,lat:35.6, cat:'Religion',   title:'Birth of Confucius',
    desc:'Confucius was born in the state of Lu in ancient China. His philosophical teachings on morality, social relationships, and proper governance would profoundly shape East Asian civilisation for millennia.'},
-  {yr:-539, cat:'Political',   title:'Cyrus Conquers Babylon',
+  {yr:-539, lon:44.4,lat:32.5, cat:'Political',   title:'Cyrus Conquers Babylon',
    desc:'Persian king Cyrus the Great captured Babylon without battle and issued the Cyrus Cylinder, often called the first declaration of human rights. He allowed exiled peoples, including Jews, to return home.'},
-  {yr:-500, cat:'Political',   title:'Athenian Democracy Founded',
+  {yr:-500, lon:23.7,lat:38.0, cat:'Political',   title:'Athenian Democracy Founded',
    desc:'Cleisthenes of Athens established demokratia — rule by the people — creating the world\'s first democracy. The Athenian experiment in self-governance became a foundational concept inspiring political thinkers for millennia.'},
-  {yr:-490, cat:'War',         title:'Battle of Marathon',
+  {yr:-490, lon:24.0,lat:38.1, cat:'War',         title:'Battle of Marathon',
    desc:'Athenian hoplites decisively defeated a much larger Persian invasion force at Marathon, halting Persia\'s westward expansion. The victory inspired Greek confidence in resisting the vast Persian Empire.'},
-  {yr:-480, cat:'War',         title:'Battle of Thermopylae',
+  {yr:-480, lon:22.5,lat:38.8, cat:'War',         title:'Battle of Thermopylae',
    desc:'Three hundred Spartans under King Leonidas held a narrow pass against Xerxes\' enormous Persian army for three days. Their sacrifice became an enduring symbol of courage against overwhelming odds.'},
-  {yr:-447, cat:'Culture',     title:'Parthenon Construction Begins',
+  {yr:-447, lon:23.7,lat:37.97, cat:'Culture',    title:'Parthenon Construction Begins',
    desc:'Construction began on the Parthenon atop Athens\' Acropolis, representing the pinnacle of ancient Greek art and architecture. The temple became antiquity\'s most enduring symbol of classical civilisation.'},
-  {yr:-334, cat:'War',         title:'Alexander the Great Begins Conquests',
+  {yr:-334, lon:22.5,lat:40.8, cat:'War',         title:'Alexander the Great Begins Conquests',
    desc:'Alexander crossed into Asia at age 20, launching one of history\'s most extraordinary military campaigns. In 13 years he created an empire stretching from Greece to northwestern India, spreading Hellenistic culture across three continents.'},
-  {yr:-321, cat:'Political',   title:'Mauryan Empire Founded',
+  {yr:-321, lon:85.1,lat:25.6, cat:'Political',   title:'Mauryan Empire Founded',
    desc:'Chandragupta Maurya, advised by the strategist Kautilya, overthrew the Nanda Dynasty and founded the Mauryan Empire — the first to unify most of the Indian subcontinent.'},
-  {yr:-221, cat:'Political',   title:'Qin Shi Huang Unifies China',
+  {yr:-221, lon:108.7,lat:34.4, cat:'Political',  title:'Qin Shi Huang Unifies China',
    desc:'Ying Zheng completed the conquest of all Chinese warring states and became the First Emperor, creating a unified Chinese empire. He standardised weights, measures, and writing, and began the Great Wall.'},
-  {yr:-218, cat:'War',         title:'Hannibal Crosses the Alps',
+  {yr:-218, lon:7.0,lat:44.5,  cat:'War',         title:'Hannibal Crosses the Alps',
    desc:'Carthaginian general Hannibal led an army — including war elephants — across the Alps into Italy. Despite his military genius and 15 years campaigning on Italian soil, he ultimately failed to destroy Rome.'},
-  {yr:-44,  cat:'Political',   title:'Assassination of Julius Caesar',
+  {yr:-44,  lon:12.5,lat:41.9, cat:'Political',   title:'Assassination of Julius Caesar',
    desc:'Roman dictator Julius Caesar was stabbed 23 times by senators on the Ides of March (15 March 44 BC). His murder triggered civil wars that ended the Republic and gave rise to the Roman Empire.'},
-  {yr:30,   cat:'Religion',    title:'Crucifixion of Jesus of Nazareth',
+  {yr:30,   lon:35.2,lat:31.8, cat:'Religion',    title:'Crucifixion of Jesus of Nazareth',
    desc:'Jesus of Nazareth was crucified in Jerusalem under the Roman prefect Pontius Pilate. His followers believed he rose from the dead — the foundational event of Christianity, which grew to become the world\'s most widely practised religion.'},
-  {yr:79,   cat:'Disaster',    title:'Eruption of Mount Vesuvius',
+  {yr:79,   lon:14.5,lat:40.7, cat:'Disaster',    title:'Eruption of Mount Vesuvius',
    desc:'Mount Vesuvius erupted catastrophically, burying Pompeii and Herculaneum under ash and pumice. The cities were preserved in remarkable detail for nearly 1,700 years, providing invaluable insights into Roman daily life.'},
-  {yr:105,  cat:'Technology',  title:'Paper Invented in China',
+  {yr:105,  lon:112.5,lat:34.7, cat:'Technology', title:'Paper Invented in China',
    desc:'Court official Cai Lun refined the papermaking process using bark, hemp, and rags. This revolutionary technology transformed record-keeping and literature, eventually spreading westward to enable mass literacy.'},
-  {yr:313,  cat:'Religion',    title:'Edict of Milan',
+  {yr:313,  lon:9.2,lat:45.5,  cat:'Religion',    title:'Edict of Milan',
    desc:'Emperors Constantine and Licinius issued the Edict of Milan, granting religious tolerance throughout the Roman Empire and ending persecution of Christians. It set Christianity on the path to becoming Rome\'s official religion.'},
-  {yr:476,  cat:'Political',   title:'Fall of Western Roman Empire',
+  {yr:476,  lon:12.5,lat:41.9, cat:'Political',   title:'Fall of Western Roman Empire',
    desc:'Odoacer deposed the last western emperor, Romulus Augustulus, conventionally marking the end of ancient Rome and the beginning of the Middle Ages in Europe. Rome had governed the West for over five centuries.'},
-  {yr:570,  cat:'Religion',    title:'Birth of Prophet Muhammad',
+  {yr:570,  lon:39.8,lat:21.4, cat:'Religion',    title:'Birth of Prophet Muhammad',
    desc:'Muhammad ibn Abdullah was born in Mecca. His later revelations, compiled in the Quran, founded Islam. Within a century of his death in 632 an Arab empire stretched from Spain to Central Asia.'},
-  {yr:605,  cat:'Technology',  title:'Grand Canal of China Completed',
+  {yr:605,  lon:112.5,lat:34.7, cat:'Technology', title:'Grand Canal of China Completed',
    desc:'The Grand Canal was substantially completed under Emperor Yang of Sui, linking the Yellow River and Yangtze River basins. At 1,776 km it became the world\'s longest artificial waterway, sustaining Chinese civilisation for centuries.'},
-  {yr:622,  cat:'Religion',    title:'The Hijra',
+  {yr:622,  lon:39.6,lat:24.5, cat:'Religion',    title:'The Hijra',
    desc:'Muhammad and his followers migrated from Mecca to Medina — the Hijra — which marks year one of the Islamic calendar. In Medina Muhammad established the first Muslim community and the political foundations of a vast future civilisation.'},
-  {yr:732,  cat:'War',         title:'Battle of Tours',
+  {yr:732,  lon:0.7,lat:47.4,  cat:'War',         title:'Battle of Tours',
    desc:'Frankish leader Charles Martel defeated Umayyad forces near Tours in France, halting the northward advance of Islam into Western Europe. It is often cited as a decisive turning point in European religious history.'},
-  {yr:800,  cat:'Political',   title:'Charlemagne Crowned Emperor',
+  {yr:800,  lon:6.1,lat:50.8,  cat:'Political',   title:'Charlemagne Crowned Emperor',
    desc:'Pope Leo III crowned Charlemagne Emperor of the Romans on Christmas Day, uniting much of Western Europe for the first time since Rome\'s fall. His empire laid foundations for the cultural and political development of modern Europe.'},
-  {yr:1000, cat:'Exploration', title:'Leif Erikson Reaches North America',
+  {yr:1000, lon:-52.7,lat:51.6, cat:'Exploration',title:'Leif Erikson Reaches North America',
    desc:'Norse explorer Leif Erikson became the first European to reach North America, landing at Vinland (Newfoundland, Canada) nearly 500 years before Columbus. Archaeological evidence at L\'Anse aux Meadows confirms the voyage.'},
-  {yr:1054, cat:'Religion',    title:'Great Schism of Christianity',
+  {yr:1054, lon:29.0,lat:41.0, cat:'Religion',    title:'Great Schism of Christianity',
    desc:'Mutual excommunications between the Patriarch of Constantinople and the Pope of Rome formalised the split between Eastern Orthodoxy and Roman Catholicism. This division has endured for nearly a thousand years.'},
-  {yr:1066, cat:'War',         title:'Norman Conquest of England',
+  {yr:1066, lon:0.6,lat:50.9,  cat:'War',         title:'Norman Conquest of England',
    desc:'William the Conqueror defeated King Harold II at Hastings and seized the English throne. The conquest introduced Norman French influences that transformed the English language, law, and governance.'},
-  {yr:1095, cat:'War',         title:'First Crusade Launched',
+  {yr:1095, lon:35.2,lat:31.8, cat:'War',         title:'First Crusade Launched',
    desc:'Pope Urban II called for a holy war to reclaim Jerusalem from Muslim rule. The Crusades shaped European and Islamic civilisation for centuries, producing cultural exchanges, trade, and religious conflict whose echoes persist today.'},
-  {yr:1215, cat:'Political',   title:'Magna Carta Signed',
+  {yr:1215, lon:-0.6,lat:51.4, cat:'Political',   title:'Magna Carta Signed',
    desc:'English barons forced King John to sign the Magna Carta, establishing that the king was subject to the rule of law. This cornerstone of constitutional law influenced democratic governance worldwide.'},
-  {yr:1271, cat:'Exploration', title:'Marco Polo Travels to China',
+  {yr:1271, lon:12.3,lat:45.4, cat:'Exploration', title:'Marco Polo Travels to China',
    desc:'Venetian merchant Marco Polo set out on a 24-year journey to the court of Kublai Khan. His vivid accounts in The Travels of Marco Polo inspired European interest in Asia and trade routes, eventually motivating Columbus.'},
-  {yr:1347, cat:'Disaster',    title:'Black Death Reaches Europe',
+  {yr:1347, lon:34.1,lat:45.0, cat:'Disaster',    title:'Black Death Reaches Europe',
    desc:'Bubonic plague arrived in Europe via Crimean trade ships, ultimately killing 30–60% of Europe\'s population by 1353. The catastrophic loss of life transformed European society, economy, religion, and culture permanently.'},
-  {yr:1368, cat:'Political',   title:'Ming Dynasty Founded',
+  {yr:1368, lon:118.8,lat:32.1, cat:'Political',  title:'Ming Dynasty Founded',
    desc:'Zhu Yuanzhang overthrew the Mongol Yuan dynasty and established the Ming, ushering in a period of stability and cultural flourishing including construction of the Forbidden City and Zheng He\'s great naval expeditions.'},
-  {yr:1440, cat:'Technology',  title:'Gutenberg Printing Press',
+  {yr:1440, lon:8.3,lat:50.0,  cat:'Technology',  title:'Gutenberg Printing Press',
    desc:'Johannes Gutenberg developed the movable-type printing press in Mainz, making books affordable and accelerating literacy. It triggered the Renaissance, Protestant Reformation, and Scientific Revolution across Europe.'},
-  {yr:1453, cat:'War',         title:'Fall of Constantinople',
+  {yr:1453, lon:29.0,lat:41.0, cat:'War',         title:'Fall of Constantinople',
    desc:'Ottoman Sultan Mehmed II captured Constantinople after a 53-day siege, ending the Byzantine Empire. The city became Istanbul, Ottoman capital, and many Greek scholars fled west, helping spark the Italian Renaissance.'},
-  {yr:1488, cat:'Exploration', title:'Dias Rounds the Cape',
+  {yr:1488, lon:18.5,lat:-34.4, cat:'Exploration',title:'Dias Rounds the Cape',
    desc:'Bartolomeu Dias became the first European to round the Cape of Good Hope, proving a sea route from Europe to Asia was possible. His voyage opened the way for Vasco da Gama\'s journey to India a decade later.'},
-  {yr:1492, cat:'Exploration', title:'Columbus Reaches the Americas',
+  {yr:1492, lon:-69.0,lat:19.0, cat:'Exploration',title:'Columbus Reaches the Americas',
    desc:'Christopher Columbus, sailing under Spanish patronage, reached the Caribbean on 12 October. His voyages initiated permanent European contact with the Americas, setting off a Columbian Exchange of peoples, crops, animals, and diseases.'},
-  {yr:1498, cat:'Exploration', title:'Vasco da Gama Reaches India',
+  {yr:1498, lon:75.8,lat:11.3, cat:'Exploration', title:'Vasco da Gama Reaches India',
    desc:'Portuguese navigator Vasco da Gama reached Calicut on the Malabar Coast, establishing the first direct sea route between Europe and Asia. This breakthrough ended Muslim and Venetian monopolies on Eastern trade.'},
-  {yr:1517, cat:'Religion',    title:'Protestant Reformation Begins',
+  {yr:1517, lon:12.6,lat:51.9, cat:'Religion',    title:'Protestant Reformation Begins',
    desc:'Martin Luther posted his 95 Theses challenging Catholic Church practices, sparking the Protestant Reformation. The rupture permanently split Western Christianity and reshaped European politics, culture, and society.'},
-  {yr:1521, cat:'War',         title:'Aztec Empire Falls to Cortés',
+  {yr:1521, lon:-99.1,lat:19.4, cat:'War',        title:'Aztec Empire Falls to Cortés',
    desc:'Hernán Cortés and indigenous allies captured Tenochtitlan after a 75-day siege, destroying the Aztec Empire. Smallpox epidemics devastated the Aztec population, giving Spain control of central Mexico.'},
-  {yr:1543, cat:'Science',     title:'Copernican Revolution',
+  {yr:1543, lon:19.7,lat:54.4, cat:'Science',     title:'Copernican Revolution',
    desc:'Nicolaus Copernicus published De Revolutionibus, proposing a heliocentric solar system. The work launched the Scientific Revolution, fundamentally challenging humanity\'s understanding of Earth\'s place in the cosmos.'},
-  {yr:1588, cat:'War',         title:'Spanish Armada Defeated',
+  {yr:1588, lon:-4.0,lat:50.0, cat:'War',         title:'Spanish Armada Defeated',
    desc:'England\'s Royal Navy and storms defeated Philip II\'s attempted invasion fleet. The victory preserved English Protestantism, boosted English nationalism, and marked the beginning of Spain\'s gradual naval decline.'},
-  {yr:1600, cat:'Political',   title:'British East India Company Founded',
+  {yr:1600, lon:-0.1,lat:51.5, cat:'Political',   title:'British East India Company Founded',
    desc:'Queen Elizabeth I granted a royal charter to the East India Company, beginning England\'s commercial expansion into Asia. Over 250 years the company evolved into a military power controlling much of the Indian subcontinent.'},
-  {yr:1687, cat:'Science',     title:'Newton\'s Principia Mathematica',
+  {yr:1687, lon:0.1,lat:52.2,  cat:'Science',     title:'Newton\'s Principia Mathematica',
    desc:'Isaac Newton published his laws of motion and universal gravitation, unifying terrestrial and celestial mechanics. This monumental work remained the framework for physical science until Einstein\'s theories two centuries later.'},
-  {yr:1760, cat:'Technology',  title:'Industrial Revolution Begins',
+  {yr:1760, lon:-1.9,lat:52.5, cat:'Technology',  title:'Industrial Revolution Begins',
    desc:'Mechanised textile production, steam engines, and iron manufacture transformed Britain, then the world. This shift from agrarian to industrial economies changed how humans lived, worked, and thought about progress.'},
-  {yr:1776, cat:'Political',   title:'American Declaration of Independence',
+  {yr:1776, lon:-75.2,lat:39.9, cat:'Political',  title:'American Declaration of Independence',
    desc:'The thirteen American colonies declared independence from Britain, creating the United States. The Declaration\'s Enlightenment principles of natural rights and government by consent influenced democratic movements worldwide.'},
-  {yr:1789, cat:'Political',   title:'French Revolution Begins',
+  {yr:1789, lon:2.3,lat:48.9,  cat:'Political',   title:'French Revolution Begins',
    desc:'The storming of the Bastille on 14 July overthrew the absolute monarchy and spread ideals of liberty, equality, and fraternity. The Revolution transformed European politics and inspired independence movements globally.'},
-  {yr:1815, cat:'War',         title:'Battle of Waterloo',
+  {yr:1815, lon:4.4,lat:50.7,  cat:'War',         title:'Battle of Waterloo',
    desc:'Wellington and Prussian forces decisively defeated Napoleon at Waterloo, ending the Napoleonic Wars. The Congress of Vienna that followed reshaped European borders and established a balance-of-power system lasting a century.'},
-  {yr:1859, cat:'Science',     title:'Darwin: Origin of Species',
+  {yr:1859, lon:-0.1,lat:51.5, cat:'Science',     title:'Darwin: Origin of Species',
    desc:'Charles Darwin published his theory of evolution by natural selection, explaining the diversity of life through descent with modification. The work revolutionised biology and challenged religious creation accounts worldwide.'},
-  {yr:1869, cat:'Technology',  title:'Suez Canal Opens',
+  {yr:1869, lon:32.5,lat:30.0, cat:'Technology',  title:'Suez Canal Opens',
    desc:'The canal connecting the Mediterranean and Red Sea dramatically shortened shipping routes between Europe and Asia. It reshaped global trade, geopolitics, and strategic naval calculations for the British Empire and beyond.'},
-  {yr:1903, cat:'Technology',  title:'Wright Brothers\' First Flight',
+  {yr:1903, lon:-75.7,lat:36.0, cat:'Technology', title:'Wright Brothers\' First Flight',
    desc:'Orville Wright achieved the first sustained, controlled powered flight at Kitty Hawk, North Carolina, in a 12-second journey covering 37 metres. Within decades aviation transformed warfare, commerce, and human geography.'},
-  {yr:1905, cat:'Science',     title:'Einstein\'s Special Relativity',
+  {yr:1905, lon:7.4,lat:46.9,  cat:'Science',     title:'Einstein\'s Special Relativity',
    desc:'Albert Einstein published his Special Theory of Relativity, redefining space, time, and mass with the famous equation E = mc². It launched a revolution in physics that eventually gave us nuclear energy, GPS, and a new cosmology.'},
-  {yr:1914, cat:'War',         title:'World War I Begins',
+  {yr:1914, lon:18.4,lat:43.9, cat:'War',         title:'World War I Begins',
    desc:'The assassination of Archduke Franz Ferdinand triggered a web of alliances that plunged Europe into war. Over four years, 17 million died, four empires collapsed, and the political map of Europe and the Middle East was redrawn.'},
-  {yr:1918, cat:'Disaster',    title:'Spanish Flu Pandemic',
+  {yr:1918, lon:-96.8,lat:39.2, cat:'Disaster',   title:'Spanish Flu Pandemic',
    desc:'The influenza pandemic of 1918–1920 infected an estimated 500 million people and killed 50–100 million — more than the First World War. It remains one of the deadliest natural disasters in recorded human history.'},
-  {yr:1939, cat:'War',         title:'World War II Begins',
+  {yr:1939, lon:21.0,lat:52.2, cat:'War',         title:'World War II Begins',
    desc:'Germany invaded Poland on 1 September, triggering declarations of war from Britain and France. The resulting six-year conflict killed 70–85 million people, including six million in the Holocaust, and reshaped global power.'},
-  {yr:1945, cat:'War',         title:'Atomic Bombs Dropped on Japan',
+  {yr:1945, lon:132.5,lat:34.4, cat:'War',        title:'Atomic Bombs Dropped on Japan',
    desc:'The United States dropped atomic bombs on Hiroshima (6 Aug) and Nagasaki (9 Aug), killing 130,000–226,000 people and forcing Japan\'s surrender. The nuclear age had begun, introducing an existential threat that defined the Cold War.'},
-  {yr:1953, cat:'Science',     title:'DNA Double Helix Discovered',
+  {yr:1953, lon:0.1,lat:52.2,  cat:'Science',     title:'DNA Double Helix Discovered',
    desc:'Francis Crick and James Watson, building on Rosalind Franklin\'s X-ray data, revealed DNA\'s double-helix structure. The discovery opened the era of molecular biology, genetic medicine, and eventually the sequencing of the human genome.'},
-  {yr:1969, cat:'Exploration', title:'Moon Landing',
+  {yr:1969, lon:-80.6,lat:28.5, cat:'Exploration',title:'Moon Landing',
    desc:'Apollo 11 astronauts Neil Armstrong and Buzz Aldrin became the first humans to walk on the Moon on 20 July. Watched by 600 million people worldwide, it remains one of humanity\'s greatest technological achievements.'},
-  {yr:1989, cat:'Political',   title:'Berlin Wall Falls',
+  {yr:1989, lon:13.4,lat:52.5, cat:'Political',   title:'Berlin Wall Falls',
    desc:'East Germany opened its borders and crowds began demolishing the Berlin Wall on 9 November. The event symbolised the collapse of Soviet communism in Eastern Europe and effectively ended the Cold War.'},
-  {yr:1991, cat:'Political',   title:'Soviet Union Dissolves',
+  {yr:1991, lon:37.6,lat:55.8, cat:'Political',   title:'Soviet Union Dissolves',
    desc:'The Soviet Union officially ceased to exist on 25 December, when Gorbachev resigned. Fifteen independent nations emerged, ending the bipolar Cold War world order and leaving the United States as the sole superpower.'},
-  {yr:2001, cat:'War',         title:'September 11 Attacks',
+  {yr:2001, lon:-74.0,lat:40.7, cat:'War',        title:'September 11 Attacks',
    desc:'Al-Qaeda terrorists hijacked four aircraft and struck the World Trade Center and the Pentagon, killing 2,977 people. The attacks triggered the War on Terror and reshaped U.S. foreign policy and global security for decades.'},
-  {yr:2020, cat:'Disaster',    title:'COVID-19 Pandemic',
+  {yr:2020, lon:114.3,lat:30.6, cat:'Disaster',   title:'COVID-19 Pandemic',
    desc:'A novel coronavirus (SARS-CoV-2) originating in Wuhan, China spread globally, causing the worst pandemic since 1918. By 2023 it had killed over seven million people and caused unprecedented economic and social disruption worldwide.'}
 ];
 
@@ -526,6 +912,7 @@ let speed       = 1;       // multiplier (1 | 5 | 20)
 let activeCats  = new Set(Object.keys(CAT_COLOR));
 let searchQ     = '';
 let playTimer   = null;
+let showMapEvents = true;
 
 const MIN_Y = -3500, MAX_Y = 2026;
 const AXIS_WIN = 480;   // total years visible on top axis
@@ -542,7 +929,7 @@ function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
 // ═══════════════════════════════════════════════════════════
 //  MAP SETUP
 // ═══════════════════════════════════════════════════════════
-let proj, gpath, mapSvg, civLayer;
+let proj, gpath, mapSvg, civLayer, evLayer;
 
 function initMap(){
   mapSvg = d3.select('#map-svg');
@@ -574,6 +961,8 @@ function initMap(){
   const countryLayer = mapSvg.append('g').attr('id','country-layer');
   // Civilization territory layer
   civLayer = mapSvg.append('g').attr('id','civ-layer');
+  // Event map marker layer (on top)
+  evLayer  = mapSvg.append('g').attr('id','ev-layer');
 
   // Load world atlas
   d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -645,6 +1034,83 @@ function toggleCiv(id){
   selCivId = selCivId === id ? null : id;
   renderCivs();
   renderSidebar();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAP EVENT MARKERS
+// ═══════════════════════════════════════════════════════════
+const EV_MARKER_WIN = 40; // show events within ±40 years on map
+
+function renderEventMarkers(){
+  if(!evLayer) return;
+  evLayer.selectAll('*').remove();
+  if(!showMapEvents) return;
+
+  const vis = EVENTS.filter(e=>{
+    const dist = Math.abs(e.yr - year);
+    if(dist > EV_MARKER_WIN) return false;
+    if(!activeCats.has(e.cat)) return false;
+    return true;
+  });
+
+  vis.forEach(e=>{
+    const pt = proj([e.lon, e.lat]);
+    if(!pt || !isFinite(pt[0]) || !isFinite(pt[1])) return;
+    const [px, py] = pt;
+
+    const dist  = Math.abs(e.yr - year);
+    const alpha = 1 - (dist / EV_MARKER_WIN) * 0.6; // 1.0 → 0.4
+    const col   = CAT_COLOR[e.cat] || '#888';
+    const isNow = dist <= 5;
+    const icon  = CAT_ICON[e.cat] || '•';
+
+    const g = evLayer.append('g')
+      .attr('class', 'ev-marker' + (isNow ? ' now' : ''))
+      .attr('transform', `translate(${px},${py})`)
+      .attr('opacity', alpha)
+      .style('cursor','pointer');
+
+    // Pulsating ring (only for "now" events, animated via CSS)
+    g.append('circle')
+      .attr('class','pulse')
+      .attr('r', 9)
+      .attr('fill', 'none')
+      .attr('stroke', col)
+      .attr('stroke-width', 2)
+      .attr('opacity', isNow ? 0.8 : 0);
+
+    // Background circle
+    g.append('circle')
+      .attr('class','bg')
+      .attr('r', 8)
+      .attr('fill', col)
+      .attr('fill-opacity', 0.85)
+      .attr('stroke', '#060d18')
+      .attr('stroke-width', 1.5);
+
+    // Category icon text
+    g.append('text')
+      .attr('text-anchor','middle')
+      .attr('dominant-baseline','central')
+      .attr('font-size','8px')
+      .attr('fill','#fff')
+      .attr('pointer-events','none')
+      .text(icon);
+
+    // Interactions
+    g.on('mouseenter', function(ev){ showEvMapTip(ev, e); })
+     .on('mousemove',  function(ev){ moveTip(ev); })
+     .on('mouseleave', hideTip)
+     .on('click', function(ev){ ev.stopPropagation(); showEvPopup(ev, e); });
+  });
+}
+
+function showEvMapTip(ev, e){
+  document.getElementById('tt-name').textContent  = e.title;
+  document.getElementById('tt-dates').textContent = `${fmtYear(e.yr)} · ${e.cat}`;
+  document.getElementById('tt-desc').textContent  = e.desc.slice(0,100)+'…';
+  tooltip.classList.add('show');
+  moveTip(ev);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -901,6 +1367,7 @@ document.querySelectorAll('.cat-btn').forEach(btn=>{
     if(activeCats.has(c)){ activeCats.delete(c); this.classList.remove('on'); }
     else { activeCats.add(c); this.classList.add('on'); }
     renderEvents();
+    renderEventMarkers();
   });
 });
 
@@ -908,6 +1375,14 @@ document.querySelectorAll('.cat-btn').forEach(btn=>{
 document.getElementById('search-input').addEventListener('input', function(){
   searchQ = this.value.trim();
   renderEvents();
+  renderEventMarkers();
+});
+
+// map events toggle
+document.getElementById('mapev-btn').addEventListener('click', function(){
+  showMapEvents = !showMapEvents;
+  this.classList.toggle('on', showMapEvents);
+  renderEventMarkers();
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -918,6 +1393,7 @@ function setYear(y){
   document.getElementById('year-display').textContent = fmtYear(year);
   renderAxis();
   renderCivs();
+  renderEventMarkers();
   renderSidebar();
   renderEvents();
 }
