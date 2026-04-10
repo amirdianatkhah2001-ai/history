@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World History Timeline Explorer</title>
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%;
+  overflow:hidden;
+  background:#08111e;
+  color:#c8d8ec;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  user-select:none;
+}
+body { display:flex; flex-direction:column; }
+
+/* ── TOP BAR ──────────────────────────────────────────────── */
+#top-bar {
+  flex-shrink:0;
+  height:100px;
+  background:#060d18;
+  border-bottom:1px solid #162540;
+  display:flex; flex-direction:column; align-items:center;
+  cursor:grab; position:relative;
+}
+#top-bar.dragging { cursor:grabbing; }
+#year-display {
+  font-size:36px; font-weight:700; letter-spacing:4px;
+  color:#f0c060; text-shadow:0 0 24px rgba(240,192,96,.45);
+  padding-top:6px; pointer-events:none;
+}
+#drag-hint {
+  font-size:9px; letter-spacing:2px; color:#243854;
+  pointer-events:none; margin-top:1px;
+}
+#axis-svg { width:100%; flex:1; pointer-events:none; }
+
+/* ── MIDDLE ZONE ──────────────────────────────────────────── */
+#middle { flex:1; display:flex; overflow:hidden; min-height:0; }
+
+/* ── SIDEBAR ──────────────────────────────────────────────── */
+#sidebar {
+  width:182px; flex-shrink:0;
+  background:#060d18; border-right:1px solid #162540;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#sidebar-title {
+  padding:9px 12px; font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.5px;
+  color:#2e5070; border-bottom:1px solid #162540; flex-shrink:0;
+}
+#civ-list { overflow-y:auto; flex:1; padding:3px 0; }
+#civ-list::-webkit-scrollbar { width:3px; }
+#civ-list::-webkit-scrollbar-thumb { background:#1e304a; border-radius:2px; }
+.civ-item {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 12px; cursor:pointer;
+  transition:background .12s;
+}
+.civ-item:hover { background:#0c1e34; }
+.civ-item.sel { background:#102840; }
+.civ-item.dim { opacity:.28; }
+.civ-swatch { width:11px; height:11px; border-radius:2px; flex-shrink:0; }
+.civ-info { flex:1; min-width:0; }
+.civ-name { font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.civ-year { font-size:9px; color:#2e5070; }
+.no-civs { padding:10px 12px; font-size:11px; color:#1e304a; }
+
+/* ── MAP AREA ─────────────────────────────────────────────── */
+#map-area { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* ── CONTROLS BAR ─────────────────────────────────────────── */
+#controls-bar {
+  display:flex; align-items:center; flex-wrap:wrap;
+  gap:5px; padding:5px 10px;
+  background:#060d18; border-bottom:1px solid #162540;
+  flex-shrink:0;
+}
+.cb { /* control button */
+  background:#0c1e34; border:1px solid #1e3050;
+  color:#90a8c0; padding:3px 9px; border-radius:4px;
+  cursor:pointer; font-size:10px; transition:background .12s, border-color .12s;
+  white-space:nowrap;
+}
+.cb:hover { background:#14283e; border-color:#2a4868; }
+.cb.on { background:#193260; border-color:#3a6090; color:#7eb8f7; }
+.sep { width:1px; height:18px; background:#162540; flex-shrink:0; }
+#search-input {
+  background:#0c1e34; border:1px solid #1e3050; color:#c8d8ec;
+  padding:3px 10px; border-radius:4px; font-size:10px; width:145px;
+  margin-left:auto; outline:none;
+}
+#search-input::placeholder { color:#1e3050; }
+#search-input:focus { border-color:#3a6090; }
+
+/* ── MAP SVG ──────────────────────────────────────────────── */
+#map-wrap { flex:1; position:relative; overflow:hidden; }
+#map-svg { position:absolute; inset:0; width:100%; height:100%; }
+
+/* ── TOOLTIP ──────────────────────────────────────────────── */
+#tooltip {
+  position:fixed; z-index:200; pointer-events:none;
+  background:rgba(4,10,22,.96); border:1px solid #1e3a60;
+  border-radius:7px; padding:10px 13px; max-width:230px;
+  opacity:0; transition:opacity .15s; backdrop-filter:blur(6px);
+}
+#tooltip.show { opacity:1; }
+#tt-name { font-size:13px; font-weight:700; color:#f0c060; margin-bottom:3px; }
+#tt-dates { font-size:10px; color:#3e6080; margin-bottom:6px; }
+#tt-desc { font-size:10px; color:#90a8c0; line-height:1.55; }
+
+/* ── BOTTOM PANEL ─────────────────────────────────────────── */
+#bottom-panel {
+  flex-shrink:0; height:160px;
+  background:#060d18; border-top:1px solid #162540;
+  position:relative; overflow:hidden;
+}
+#events-svg { position:absolute; inset:0; width:100%; height:100%; }
+
+/* ── EVENT POPUP ──────────────────────────────────────────── */
+#ev-popup {
+  position:fixed; z-index:300; display:none;
+  background:#04101e; border:1px solid #2a4a80;
+  border-radius:9px; padding:14px 18px; max-width:310px;
+  box-shadow:0 6px 32px rgba(0,0,0,.7); backdrop-filter:blur(8px);
+}
+#ev-popup-close {
+  position:absolute; top:9px; right:13px;
+  cursor:pointer; color:#2e5070; font-size:16px; line-height:1;
+}
+#ev-popup-close:hover { color:#c8d8ec; }
+#ep-cat {
+  display:inline-block; font-size:9px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1px;
+  padding:2px 8px; border-radius:10px; margin-bottom:7px;
+}
+#ep-title { font-size:15px; font-weight:700; color:#f0c060; margin-bottom:4px; }
+#ep-year { font-size:10px; color:#3e6080; margin-bottom:9px; }
+#ep-desc { font-size:11px; color:#90a8c0; line-height:1.65; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <div id="year-display">1500 AD</div>
+  <div id="drag-hint">← DRAG LEFT / RIGHT TO TRAVEL THROUGH TIME →</div>
+  <svg id="axis-svg"></svg>
+</div>
+
+<!-- MIDDLE -->
+<div id="middle">
+  <div id="sidebar">
+    <div id="sidebar-title">Active Civilizations</div>
+    <div id="civ-list"></div>
+  </div>
+  <div id="map-area">
+    <div id="controls-bar">
+      <button class="cb" id="play-btn">▶&nbsp;Play</button>
+      <button class="cb on" id="spd-1" data-spd="1">1×</button>
+      <button class="cb" id="spd-5" data-spd="5">5×</button>
+      <button class="cb" id="spd-20" data-spd="20">20×</button>
+      <div class="sep"></div>
+      <span style="font-size:9px;color:#243854;letter-spacing:1px;">FILTER:</span>
+      <button class="cb on cat-btn" data-cat="Political">Political</button>
+      <button class="cb on cat-btn" data-cat="War">War</button>
+      <button class="cb on cat-btn" data-cat="Religion">Religion</button>
+      <button class="cb on cat-btn" data-cat="Science">Science</button>
+      <button class="cb on cat-btn" data-cat="Technology">Technology</button>
+      <button class="cb on cat-btn" data-cat="Disaster">Disaster</button>
+      <button class="cb on cat-btn" data-cat="Culture">Culture</button>
+      <button class="cb on cat-btn" data-cat="Exploration">Exploration</button>
+      <input type="text" id="search-input" placeholder="🔍 Search events…">
+    </div>
+    <div id="map-wrap">
+      <svg id="map-svg"></svg>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM EVENTS PANEL -->
+<div id="bottom-panel">
+  <svg id="events-svg"></svg>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip">
+  <div id="tt-name"></div>
+  <div id="tt-dates"></div>
+  <div id="tt-desc"></div>
+</div>
+
+<!-- EVENT POPUP -->
+<div id="ev-popup">
+  <span id="ev-popup-close">✕</span>
+  <span id="ep-cat"></span>
+  <div id="ep-title"></div>
+  <div id="ep-year"></div>
+  <div id="ep-desc"></div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════
+//  DATA – CIVILIZATIONS
+// ═══════════════════════════════════════════════════════════
+// Polygon coordinates: [longitude, latitude] (WGS-84)
+// Each polygon is an approximate peak-extent territory.
+const CIVS = [
+  {
+    id:'roman', name:'Roman Empire', start:-27, end:476,
+    color:'#e74c3c',
+    desc:'The Roman Empire dominated the Mediterranean world for five centuries. At its greatest extent under Trajan (117 AD) it stretched from Britain to Mesopotamia and from the Rhine–Danube frontier to the Sahara Desert.',
+    geo:{type:'Polygon', coordinates:[[
+      [-4,56],[3,51],[8,54],[14,54],[18,50],[22,48],[28,46],
+      [32,46],[36,44],[43,42],[44,38],[44,34],[42,30],[36,28],
+      [30,28],[24,28],[18,28],[12,28],[6,30],[0,32],[-4,34],
+      [-8,36],[-10,38],[-10,42],[-8,44],[-4,46],[-2,50],[-4,56]
+    ]]}
+  },
+  {
+    id:'mongol', name:'Mongol Empire', start:1206, end:1368,
+    color:'#e67e22',
+    desc:'The largest contiguous land empire in history, founded by Genghis Khan. By 1279 AD it stretched from Korea and Vietnam to Poland and Iraq, facilitating trade across the Silk Road.',
+    geo:{type:'Polygon', coordinates:[[
+      [20,52],[28,58],[48,62],[68,62],[88,60],[108,54],
+      [130,52],[140,46],[136,38],[130,30],[122,22],[108,20],
+      [96,22],[80,26],[64,24],[52,28],[44,34],[38,40],
+      [36,46],[28,50],[20,52]
+    ]]}
+  },
+  {
+    id:'byzantine', name:'Byzantine Empire', start:330, end:1453,
+    color:'#9b59b6',
+    desc:'The eastern continuation of the Roman Empire, centered at Constantinople. Under Justinian I it briefly recovered much of the western Mediterranean. It preserved Greco-Roman culture for over a thousand years.',
+    geo:{type:'Polygon', coordinates:[[
+      [12,44],[16,48],[22,48],[28,46],[34,44],[38,42],
+      [42,40],[44,38],[42,34],[38,30],[32,30],[28,34],
+      [22,36],[16,36],[12,38],[10,40],[10,42],[12,44]
+    ]]}
+  },
+  {
+    id:'ottoman', name:'Ottoman Empire', start:1299, end:1922,
+    color:'#27ae60',
+    desc:'One of history\'s most powerful and long-lasting empires, controlling southeastern Europe, western Asia, and northern Africa. At its height under Suleiman the Magnificent it rivaled any European power.',
+    geo:{type:'Polygon', coordinates:[[
+      [14,48],[22,50],[30,48],[36,44],[42,40],[48,38],
+      [56,32],[52,24],[44,18],[36,12],[26,20],[18,28],
+      [10,32],[6,34],[2,36],[6,40],[10,44],[14,48]
+    ]]}
+  },
+  {
+    id:'british', name:'British Empire', start:1583, end:1997,
+    color:'#c0392b',
+    desc:'The largest empire in history at its peak, covering ~24 % of Earth\'s land area. It spread the English language, common law, and parliamentary democracy across every continent.',
+    geo:{type:'MultiPolygon', coordinates:[
+      // British Isles
+      [[[-8,50],[-5,56],[-1,58],[2,54],[2,52],[-2,50],[-5,50],[-8,50]]],
+      // Indian subcontinent (British India — includes modern Pakistan & Bangladesh)
+      [[[60,24],[68,22],[76,8],[80,8],[86,14],[92,22],[94,24],[90,28],[80,34],[72,34],[60,30],[60,24]]],
+      // Australia
+      [[[114,-36],[122,-26],[132,-14],[140,-18],[150,-24],[154,-30],[148,-40],[136,-40],[124,-36],[116,-36],[114,-36]]],
+      // Canada (approx)
+      [[[-140,60],[-138,70],[-80,72],[-52,48],[-66,44],[-82,44],[-92,48],[-100,50],[-120,50],[-132,56],[-140,60]]]
+    ]}
+  },
+  {
+    id:'aztec', name:'Aztec Empire', start:1428, end:1521,
+    color:'#f39c12',
+    desc:'The Aztec Triple Alliance dominated central Mexico for nearly a century. Its capital Tenochtitlan (modern Mexico City) was among the world\'s largest cities with 200,000–300,000 inhabitants.',
+    geo:{type:'Polygon', coordinates:[[
+      [-104,20],[-100,22],[-96,22],[-92,20],[-88,16],
+      [-90,14],[-94,16],[-98,18],[-102,18],[-104,20]
+    ]]}
+  },
+  {
+    id:'inca', name:'Inca Empire', start:1438, end:1533,
+    color:'#d4ac0d',
+    desc:'The largest empire in pre-Columbian America, stretching 4,000 km along South America\'s western coast. Famous for its road network, terrace farming, and the mountain citadel of Machu Picchu.',
+    geo:{type:'Polygon', coordinates:[[
+      [-82,0],[-76,2],[-70,-2],[-68,-10],[-70,-20],
+      [-70,-30],[-72,-36],[-72,-40],[-74,-40],[-78,-34],
+      [-80,-28],[-82,-18],[-84,-10],[-82,0]
+    ]]}
+  },
+  {
+    id:'han', name:'Han Dynasty', start:-206, end:220,
+    color:'#c0392b',
+    desc:'A golden age of Chinese civilisation. Under Han rule China expanded into Central Asia, established the Silk Road, and developed a Confucian-based civil-service system that endured for two millennia.',
+    geo:{type:'Polygon', coordinates:[[
+      [98,42],[108,44],[120,44],[128,42],[132,38],
+      [128,30],[124,24],[116,20],[108,18],[100,20],
+      [92,24],[86,32],[88,40],[96,44],[98,42]
+    ]]}
+  },
+  {
+    id:'ming', name:'Ming Dynasty', start:1368, end:1644,
+    color:'#e74c3c',
+    desc:'The Ming Dynasty restored Han Chinese rule and brought remarkable stability. It built the Great Wall in its current form, constructed the Forbidden City in Beijing, and despatched Zheng He\'s massive treasure fleets.',
+    geo:{type:'Polygon', coordinates:[[
+      [98,40],[108,44],[120,44],[128,42],[130,36],
+      [126,26],[118,22],[108,18],[100,20],[96,26],
+      [96,34],[98,40]
+    ]]}
+  },
+  {
+    id:'qing', name:'Qing Dynasty', start:1644, end:1912,
+    color:'#16a085',
+    desc:'China\'s last imperial dynasty, founded by the Manchu people. At its 18th-century height it was one of the largest empires in history, incorporating Tibet, Xinjiang, Mongolia, and Manchuria into Chinese rule.',
+    geo:{type:'Polygon', coordinates:[[
+      [82,44],[88,52],[100,54],[114,54],[128,52],
+      [138,50],[142,44],[136,36],[130,28],[120,20],
+      [108,18],[100,22],[90,26],[78,30],[76,38],
+      [80,44],[82,44]
+    ]]}
+  },
+  {
+    id:'mughal', name:'Mughal Empire', start:1526, end:1857,
+    color:'#8e44ad',
+    desc:'A powerful Islamic empire that ruled most of the Indian subcontinent. Under Akbar the Great it was renowned for religious tolerance; under Shah Jahan it produced the Taj Mahal, one of history\'s finest buildings.',
+    geo:{type:'Polygon', coordinates:[[
+      [62,24],[68,36],[74,38],[80,36],[88,28],
+      [92,20],[88,12],[80,8],[72,8],[64,12],
+      [60,20],[62,24]
+    ]]}
+  },
+  {
+    id:'persian', name:'Persian (Achaemenid) Empire', start:-550, end:-330,
+    color:'#2980b9',
+    desc:'The world\'s first true superpower, established by Cyrus the Great. Under Darius I it stretched from Thrace and Egypt to the Indus Valley — the largest empire the ancient world had yet seen.',
+    geo:{type:'Polygon', coordinates:[[
+      [20,30],[26,38],[32,42],[40,42],[48,44],[60,44],
+      [72,38],[76,28],[70,22],[60,18],[50,16],[42,18],
+      [34,20],[28,26],[22,30],[20,30]
+    ]]}
+  },
+  {
+    id:'mauryan', name:'Mauryan Empire', start:-321, end:-185,
+    color:'#1abc9c',
+    desc:'The first empire to unify the Indian subcontinent, founded by Chandragupta Maurya. Under Ashoka it became famous for its promotion of Buddhism and a humane social policy across South Asia.',
+    geo:{type:'Polygon', coordinates:[[
+      [62,28],[68,36],[76,34],[82,30],[88,26],[92,22],
+      [88,14],[80,8],[72,8],[64,12],[60,20],[62,28]
+    ]]}
+  },
+  {
+    id:'kush', name:'Kingdom of Kush', start:-1070, end:350,
+    color:'#d35400',
+    desc:'A powerful ancient African civilisation along the Nile in modern Sudan. Kushite pharaohs once ruled all of Egypt as the 25th Dynasty. Its capital Meroe was a major centre of iron production and trade.',
+    geo:{type:'Polygon', coordinates:[[
+      [22,22],[28,24],[34,24],[38,20],[38,14],
+      [36,10],[30,8],[26,10],[22,14],[20,18],[22,22]
+    ]]}
+  },
+  {
+    id:'korean', name:'Korean Kingdoms', start:-57, end:1897,
+    color:'#3498db',
+    desc:'A succession of sophisticated kingdoms — including Goguryeo, Silla, Goryeo, and Joseon — occupied the Korean peninsula. Korean civilisation gave the world a uniquely scientific alphabet (Hangul) and exquisite celadon ceramics.',
+    geo:{type:'Polygon', coordinates:[[
+      [124,38],[126,42],[128,42],[130,40],[130,36],
+      [128,34],[126,34],[124,36],[124,38]
+    ]]}
+  }
+];
+
+// ═══════════════════════════════════════════════════════════
+//  DATA – HISTORICAL EVENTS  (63 events, full range)
+// ═══════════════════════════════════════════════════════════
+const CAT_COLOR = {
+  Political:'#e74c3c', War:'#e67e22', Religion:'#9b59b6',
+  Science:'#3498db',   Technology:'#1abc9c', Disaster:'#e91e63',
+  Culture:'#f1c40f',   Exploration:'#2ecc71'
+};
+
+const EVENTS = [
+  {yr:-3100,cat:'Political',   title:'Unification of Egypt',
+   desc:'Pharaoh Narmer united Upper and Lower Egypt into a single kingdom, founding one of history\'s longest-lived civilisations. The unification established a powerful centralised state along the Nile that would endure for over 3,000 years.'},
+  {yr:-3000,cat:'Technology',  title:'Cuneiform Writing Invented',
+   desc:'The Sumerians of Mesopotamia developed cuneiform script, one of humanity\'s earliest writing systems. Originally used for record-keeping and trade, it evolved into a full literary medium and spread across the ancient Near East.'},
+  {yr:-2560,cat:'Culture',     title:'Great Pyramid of Giza Built',
+   desc:'Pharaoh Khufu\'s Great Pyramid was completed at Giza, standing as the tallest man-made structure for over 3,800 years. The marvel required roughly 2.3 million stone blocks and the labour of tens of thousands of workers.'},
+  {yr:-2334,cat:'Political',   title:'Akkadian Empire Founded',
+   desc:'Sargon of Akkad conquered the Sumerian city-states and created the world\'s first empire. His domain stretched from the Persian Gulf to the Mediterranean, setting a template for imperial governance.'},
+  {yr:-1750,cat:'Political',   title:'Code of Hammurabi',
+   desc:'Babylonian king Hammurabi promulgated one of history\'s earliest and most complete written legal codes. The 282 laws established principles of justice, property rights, and social order.'},
+  {yr:-1200,cat:'Disaster',    title:'Bronze Age Collapse',
+   desc:'A catastrophic systems collapse destroyed virtually every major Bronze Age civilisation in the eastern Mediterranean simultaneously. Causes likely included climate change, migrations of the Sea Peoples, and trade-network disruption.'},
+  {yr:-1000,cat:'Technology',  title:'Iron Age Begins',
+   desc:'Iron-smelting technology spread across Eurasia, replacing bronze as the primary material for weapons and tools. Iron\'s greater abundance and hardness transformed warfare, agriculture, and industry across many civilisations.'},
+  {yr:-776, cat:'Culture',     title:'First Olympic Games',
+   desc:'The first recorded Olympic Games were held at Olympia, Greece, in honour of Zeus. They united the otherwise fractious Greek city-states in peaceful competition every four years.'},
+  {yr:-753, cat:'Political',   title:'Rome Founded',
+   desc:'According to Roman tradition, Romulus founded the city of Rome on the Palatine Hill. The small pastoral settlement would grow over seven centuries into the capital of a vast Mediterranean empire.'},
+  {yr:-563, cat:'Religion',    title:'Birth of the Buddha',
+   desc:'Siddhartha Gautama, who would become the Buddha, was born in Lumbini (present-day Nepal). His teachings on suffering and the path to enlightenment spread across Asia and shaped one of the world\'s major religions.'},
+  {yr:-551, cat:'Religion',    title:'Birth of Confucius',
+   desc:'Confucius was born in the state of Lu in ancient China. His philosophical teachings on morality, social relationships, and proper governance would profoundly shape East Asian civilisation for millennia.'},
+  {yr:-539, cat:'Political',   title:'Cyrus Conquers Babylon',
+   desc:'Persian king Cyrus the Great captured Babylon without battle and issued the Cyrus Cylinder, often called the first declaration of human rights. He allowed exiled peoples, including Jews, to return home.'},
+  {yr:-500, cat:'Political',   title:'Athenian Democracy Founded',
+   desc:'Cleisthenes of Athens established demokratia — rule by the people — creating the world\'s first democracy. The Athenian experiment in self-governance became a foundational concept inspiring political thinkers for millennia.'},
+  {yr:-490, cat:'War',         title:'Battle of Marathon',
+   desc:'Athenian hoplites decisively defeated a much larger Persian invasion force at Marathon, halting Persia\'s westward expansion. The victory inspired Greek confidence in resisting the vast Persian Empire.'},
+  {yr:-480, cat:'War',         title:'Battle of Thermopylae',
+   desc:'Three hundred Spartans under King Leonidas held a narrow pass against Xerxes\' enormous Persian army for three days. Their sacrifice became an enduring symbol of courage against overwhelming odds.'},
+  {yr:-447, cat:'Culture',     title:'Parthenon Construction Begins',
+   desc:'Construction began on the Parthenon atop Athens\' Acropolis, representing the pinnacle of ancient Greek art and architecture. The temple became antiquity\'s most enduring symbol of classical civilisation.'},
+  {yr:-334, cat:'War',         title:'Alexander the Great Begins Conquests',
+   desc:'Alexander crossed into Asia at age 20, launching one of history\'s most extraordinary military campaigns. In 13 years he created an empire stretching from Greece to northwestern India, spreading Hellenistic culture across three continents.'},
+  {yr:-321, cat:'Political',   title:'Mauryan Empire Founded',
+   desc:'Chandragupta Maurya, advised by the strategist Kautilya, overthrew the Nanda Dynasty and founded the Mauryan Empire — the first to unify most of the Indian subcontinent.'},
+  {yr:-221, cat:'Political',   title:'Qin Shi Huang Unifies China',
+   desc:'Ying Zheng completed the conquest of all Chinese warring states and became the First Emperor, creating a unified Chinese empire. He standardised weights, measures, and writing, and began the Great Wall.'},
+  {yr:-218, cat:'War',         title:'Hannibal Crosses the Alps',
+   desc:'Carthaginian general Hannibal led an army — including war elephants — across the Alps into Italy. Despite his military genius and 15 years campaigning on Italian soil, he ultimately failed to destroy Rome.'},
+  {yr:-44,  cat:'Political',   title:'Assassination of Julius Caesar',
+   desc:'Roman dictator Julius Caesar was stabbed 23 times by senators on the Ides of March (15 March 44 BC). His murder triggered civil wars that ended the Republic and gave rise to the Roman Empire.'},
+  {yr:30,   cat:'Religion',    title:'Crucifixion of Jesus of Nazareth',
+   desc:'Jesus of Nazareth was crucified in Jerusalem under the Roman prefect Pontius Pilate. His followers believed he rose from the dead — the foundational event of Christianity, which grew to become the world\'s most widely practised religion.'},
+  {yr:79,   cat:'Disaster',    title:'Eruption of Mount Vesuvius',
+   desc:'Mount Vesuvius erupted catastrophically, burying Pompeii and Herculaneum under ash and pumice. The cities were preserved in remarkable detail for nearly 1,700 years, providing invaluable insights into Roman daily life.'},
+  {yr:105,  cat:'Technology',  title:'Paper Invented in China',
+   desc:'Court official Cai Lun refined the papermaking process using bark, hemp, and rags. This revolutionary technology transformed record-keeping and literature, eventually spreading westward to enable mass literacy.'},
+  {yr:313,  cat:'Religion',    title:'Edict of Milan',
+   desc:'Emperors Constantine and Licinius issued the Edict of Milan, granting religious tolerance throughout the Roman Empire and ending persecution of Christians. It set Christianity on the path to becoming Rome\'s official religion.'},
+  {yr:476,  cat:'Political',   title:'Fall of Western Roman Empire',
+   desc:'Odoacer deposed the last western emperor, Romulus Augustulus, conventionally marking the end of ancient Rome and the beginning of the Middle Ages in Europe. Rome had governed the West for over five centuries.'},
+  {yr:570,  cat:'Religion',    title:'Birth of Prophet Muhammad',
+   desc:'Muhammad ibn Abdullah was born in Mecca. His later revelations, compiled in the Quran, founded Islam. Within a century of his death in 632 an Arab empire stretched from Spain to Central Asia.'},
+  {yr:605,  cat:'Technology',  title:'Grand Canal of China Completed',
+   desc:'The Grand Canal was substantially completed under Emperor Yang of Sui, linking the Yellow River and Yangtze River basins. At 1,776 km it became the world\'s longest artificial waterway, sustaining Chinese civilisation for centuries.'},
+  {yr:622,  cat:'Religion',    title:'The Hijra',
+   desc:'Muhammad and his followers migrated from Mecca to Medina — the Hijra — which marks year one of the Islamic calendar. In Medina Muhammad established the first Muslim community and the political foundations of a vast future civilisation.'},
+  {yr:732,  cat:'War',         title:'Battle of Tours',
+   desc:'Frankish leader Charles Martel defeated Umayyad forces near Tours in France, halting the northward advance of Islam into Western Europe. It is often cited as a decisive turning point in European religious history.'},
+  {yr:800,  cat:'Political',   title:'Charlemagne Crowned Emperor',
+   desc:'Pope Leo III crowned Charlemagne Emperor of the Romans on Christmas Day, uniting much of Western Europe for the first time since Rome\'s fall. His empire laid foundations for the cultural and political development of modern Europe.'},
+  {yr:1000, cat:'Exploration', title:'Leif Erikson Reaches North America',
+   desc:'Norse explorer Leif Erikson became the first European to reach North America, landing at Vinland (Newfoundland, Canada) nearly 500 years before Columbus. Archaeological evidence at L\'Anse aux Meadows confirms the voyage.'},
+  {yr:1054, cat:'Religion',    title:'Great Schism of Christianity',
+   desc:'Mutual excommunications between the Patriarch of Constantinople and the Pope of Rome formalised the split between Eastern Orthodoxy and Roman Catholicism. This division has endured for nearly a thousand years.'},
+  {yr:1066, cat:'War',         title:'Norman Conquest of England',
+   desc:'William the Conqueror defeated King Harold II at Hastings and seized the English throne. The conquest introduced Norman French influences that transformed the English language, law, and governance.'},
+  {yr:1095, cat:'War',         title:'First Crusade Launched',
+   desc:'Pope Urban II called for a holy war to reclaim Jerusalem from Muslim rule. The Crusades shaped European and Islamic civilisation for centuries, producing cultural exchanges, trade, and religious conflict whose echoes persist today.'},
+  {yr:1215, cat:'Political',   title:'Magna Carta Signed',
+   desc:'English barons forced King John to sign the Magna Carta, establishing that the king was subject to the rule of law. This cornerstone of constitutional law influenced democratic governance worldwide.'},
+  {yr:1271, cat:'Exploration', title:'Marco Polo Travels to China',
+   desc:'Venetian merchant Marco Polo set out on a 24-year journey to the court of Kublai Khan. His vivid accounts in The Travels of Marco Polo inspired European interest in Asia and trade routes, eventually motivating Columbus.'},
+  {yr:1347, cat:'Disaster',    title:'Black Death Reaches Europe',
+   desc:'Bubonic plague arrived in Europe via Crimean trade ships, ultimately killing 30–60 % of Europe\'s population by 1353. The catastrophic loss of life transformed European society, economy, religion, and culture permanently.'},
+  {yr:1368, cat:'Political',   title:'Ming Dynasty Founded',
+   desc:'Zhu Yuanzhang overthrew the Mongol Yuan dynasty and established the Ming, ushering in a period of stability and cultural flourishing including construction of the Forbidden City and Zheng He\'s great naval expeditions.'},
+  {yr:1440, cat:'Technology',  title:'Gutenberg Printing Press',
+   desc:'Johannes Gutenberg developed the movable-type printing press in Mainz, making books affordable and accelerating literacy. It triggered the Renaissance, Protestant Reformation, and Scientific Revolution across Europe.'},
+  {yr:1453, cat:'War',         title:'Fall of Constantinople',
+   desc:'Ottoman Sultan Mehmed II captured Constantinople after a 53-day siege, ending the Byzantine Empire. The city became Istanbul, Ottoman capital, and many Greek scholars fled west, helping spark the Italian Renaissance.'},
+  {yr:1488, cat:'Exploration', title:'Dias Rounds the Cape',
+   desc:'Bartolomeu Dias became the first European to round the Cape of Good Hope, proving a sea route from Europe to Asia was possible. His voyage opened the way for Vasco da Gama\'s journey to India a decade later.'},
+  {yr:1492, cat:'Exploration', title:'Columbus Reaches the Americas',
+   desc:'Christopher Columbus, sailing under Spanish patronage, reached the Caribbean on 12 October. His voyages initiated permanent European contact with the Americas, setting off a Columbian Exchange of peoples, crops, animals, and diseases.'},
+  {yr:1498, cat:'Exploration', title:'Vasco da Gama Reaches India',
+   desc:'Portuguese navigator Vasco da Gama reached Calicut on the Malabar Coast, establishing the first direct sea route between Europe and Asia. This breakthrough ended Muslim and Venetian monopolies on Eastern trade.'},
+  {yr:1517, cat:'Religion',    title:'Protestant Reformation Begins',
+   desc:'Martin Luther posted his 95 Theses challenging Catholic Church practices, sparking the Protestant Reformation. The rupture permanently split Western Christianity and reshaped European politics, culture, and society.'},
+  {yr:1521, cat:'War',         title:'Aztec Empire Falls to Cortés',
+   desc:'Hernán Cortés and indigenous allies captured Tenochtitlan after a 75-day siege, destroying the Aztec Empire. Smallpox epidemics devastated the Aztec population, giving Spain control of central Mexico.'},
+  {yr:1543, cat:'Science',     title:'Copernican Revolution',
+   desc:'Nicolaus Copernicus published De Revolutionibus, proposing a heliocentric solar system. The work launched the Scientific Revolution, fundamentally challenging humanity\'s understanding of Earth\'s place in the cosmos.'},
+  {yr:1588, cat:'War',         title:'Spanish Armada Defeated',
+   desc:'England\'s Royal Navy and storms defeated Philip II\'s attempted invasion fleet. The victory preserved English Protestantism, boosted English nationalism, and marked the beginning of Spain\'s gradual naval decline.'},
+  {yr:1600, cat:'Political',   title:'British East India Company Founded',
+   desc:'Queen Elizabeth I granted a royal charter to the East India Company, beginning England\'s commercial expansion into Asia. Over 250 years the company evolved into a military power controlling much of the Indian subcontinent.'},
+  {yr:1687, cat:'Science',     title:'Newton\'s Principia Mathematica',
+   desc:'Isaac Newton published his laws of motion and universal gravitation, unifying terrestrial and celestial mechanics. This monumental work remained the framework for physical science until Einstein\'s theories two centuries later.'},
+  {yr:1760, cat:'Technology',  title:'Industrial Revolution Begins',
+   desc:'Mechanised textile production, steam engines, and iron manufacture transformed Britain, then the world. This shift from agrarian to industrial economies changed how humans lived, worked, and thought about progress.'},
+  {yr:1776, cat:'Political',   title:'American Declaration of Independence',
+   desc:'The thirteen American colonies declared independence from Britain, creating the United States. The Declaration\'s Enlightenment principles of natural rights and government by consent influenced democratic movements worldwide.'},
+  {yr:1789, cat:'Political',   title:'French Revolution Begins',
+   desc:'The storming of the Bastille on 14 July overthrew the absolute monarchy and spread ideals of liberty, equality, and fraternity. The Revolution transformed European politics and inspired independence movements globally.'},
+  {yr:1815, cat:'War',         title:'Battle of Waterloo',
+   desc:'Wellington and Prussian forces decisively defeated Napoleon at Waterloo, ending the Napoleonic Wars. The Congress of Vienna that followed reshaped European borders and established a balance-of-power system lasting a century.'},
+  {yr:1859, cat:'Science',     title:'Darwin: Origin of Species',
+   desc:'Charles Darwin published his theory of evolution by natural selection, explaining the diversity of life through descent with modification. The work revolutionised biology and challenged religious creation accounts worldwide.'},
+  {yr:1869, cat:'Technology',  title:'Suez Canal Opens',
+   desc:'The canal connecting the Mediterranean and Red Sea dramatically shortened shipping routes between Europe and Asia. It reshaped global trade, geopolitics, and strategic naval calculations for the British Empire and beyond.'},
+  {yr:1903, cat:'Technology',  title:'Wright Brothers\' First Flight',
+   desc:'Orville Wright achieved the first sustained, controlled powered flight at Kitty Hawk, North Carolina, in a 12-second journey covering 37 metres. Within decades aviation transformed warfare, commerce, and human geography.'},
+  {yr:1905, cat:'Science',     title:'Einstein\'s Special Relativity',
+   desc:'Albert Einstein published his Special Theory of Relativity, redefining space, time, and mass with the famous equation E = mc². It launched a revolution in physics that eventually gave us nuclear energy, GPS, and a new cosmology.'},
+  {yr:1914, cat:'War',         title:'World War I Begins',
+   desc:'The assassination of Archduke Franz Ferdinand triggered a web of alliances that plunged Europe into war. Over four years, 17 million died, four empires collapsed, and the political map of Europe and the Middle East was redrawn.'},
+  {yr:1918, cat:'Disaster',    title:'Spanish Flu Pandemic',
+   desc:'The influenza pandemic of 1918–1920 infected an estimated 500 million people and killed 50–100 million — more than the First World War. It remains one of the deadliest natural disasters in recorded human history.'},
+  {yr:1939, cat:'War',         title:'World War II Begins',
+   desc:'Germany invaded Poland on 1 September, triggering declarations of war from Britain and France. The resulting six-year conflict killed 70–85 million people, including six million in the Holocaust, and reshaped global power.'},
+  {yr:1945, cat:'War',         title:'Atomic Bombs Dropped on Japan',
+   desc:'The United States dropped atomic bombs on Hiroshima (6 Aug) and Nagasaki (9 Aug), killing 130,000–226,000 people and forcing Japan\'s surrender. The nuclear age had begun, introducing an existential threat that defined the Cold War.'},
+  {yr:1953, cat:'Science',     title:'DNA Double Helix Discovered',
+   desc:'Francis Crick and James Watson, building on Rosalind Franklin\'s X-ray data, revealed DNA\'s double-helix structure. The discovery opened the era of molecular biology, genetic medicine, and eventually the sequencing of the human genome.'},
+  {yr:1969, cat:'Exploration', title:'Moon Landing',
+   desc:'Apollo 11 astronauts Neil Armstrong and Buzz Aldrin became the first humans to walk on the Moon on 20 July. Watched by 600 million people worldwide, it remains one of humanity\'s greatest technological achievements.'},
+  {yr:1989, cat:'Political',   title:'Berlin Wall Falls',
+   desc:'East Germany opened its borders and crowds began demolishing the Berlin Wall on 9 November. The event symbolised the collapse of Soviet communism in Eastern Europe and effectively ended the Cold War.'},
+  {yr:1991, cat:'Political',   title:'Soviet Union Dissolves',
+   desc:'The Soviet Union officially ceased to exist on 25 December, when Gorbachev resigned. Fifteen independent nations emerged, ending the bipolar Cold War world order and leaving the United States as the sole superpower.'},
+  {yr:2001, cat:'War',         title:'September 11 Attacks',
+   desc:'Al-Qaeda terrorists hijacked four aircraft and struck the World Trade Center and the Pentagon, killing 2,977 people. The attacks triggered the War on Terror and reshaped U.S. foreign policy and global security for decades.'},
+  {yr:2020, cat:'Disaster',    title:'COVID-19 Pandemic',
+   desc:'A novel coronavirus (SARS-CoV-2) originating in Wuhan, China spread globally, causing the worst pandemic since 1918. By 2023 it had killed over seven million people and caused unprecedented economic and social disruption worldwide.'}
+];
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let year        = 1500;
+let selCivId    = null;
+let playing     = false;
+let speed       = 1;       // multiplier (1 | 5 | 20)
+let activeCats  = new Set(Object.keys(CAT_COLOR));
+let searchQ     = '';
+let playTimer   = null;
+
+const MIN_Y = -3500, MAX_Y = 2026;
+const AXIS_WIN = 480;   // total years visible on top axis
+const EV_WIN   = 120;   // ±120 years in events panel
+
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+function fmtYear(y){
+  return y < 0 ? `${-y} BC` : `${y} AD`;
+}
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+// ═══════════════════════════════════════════════════════════
+//  MAP SETUP
+// ═══════════════════════════════════════════════════════════
+let proj, gpath, mapSvg, civLayer;
+
+function initMap(){
+  mapSvg = d3.select('#map-svg');
+  mapSvg.selectAll('*').remove();
+
+  const el   = document.getElementById('map-wrap');
+  const W    = el.clientWidth  || 800;
+  const H    = el.clientHeight || 500;
+  const scl  = Math.min(W / 6.2, H / 3.2);
+
+  proj  = d3.geoNaturalEarth1().scale(scl).translate([W/2, H/2]);
+  gpath = d3.geoPath().projection(proj);
+
+  // Ocean background
+  mapSvg.append('rect').attr('width',W).attr('height',H).attr('fill','#0a1828');
+
+  // Sphere
+  mapSvg.append('path')
+    .datum({type:'Sphere'}).attr('d',gpath)
+    .attr('fill','#0d2444').attr('stroke','#162a44').attr('stroke-width',0.8);
+
+  // Graticule
+  mapSvg.append('path')
+    .datum(d3.geoGraticule()())
+    .attr('d',gpath).attr('fill','none')
+    .attr('stroke','rgba(255,255,255,0.05)').attr('stroke-width',0.4);
+
+  // Country base layer
+  const countryLayer = mapSvg.append('g').attr('id','country-layer');
+  // Civilization territory layer
+  civLayer = mapSvg.append('g').attr('id','civ-layer');
+
+  // Load world atlas
+  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    .then(world=>{
+      const countries = topojson.feature(world, world.objects.countries);
+      countryLayer.selectAll('.country')
+        .data(countries.features)
+        .join('path')
+        .attr('class','country')
+        .attr('d', gpath)
+        .attr('fill','#1a2e50')
+        .attr('stroke','#0e1e38')
+        .attr('stroke-width',0.35);
+      renderCivs();
+    })
+    .catch(()=>{ renderCivs(); }); // render civs even if atlas fails
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CIVILIZATION RENDERING
+// ═══════════════════════════════════════════════════════════
+const tooltip = document.getElementById('tooltip');
+
+function renderCivs(){
+  if(!civLayer) return;
+  civLayer.selectAll('.civ-path').remove();
+
+  const active = CIVS.filter(c=> year >= c.start && year <= c.end);
+
+  active.forEach(c=>{
+    const dimmed = selCivId && selCivId !== c.id;
+    const op     = dimmed ? 0.08 : 0.55;
+
+    civLayer.append('path')
+      .datum({type:'Feature', geometry:c.geo, properties:{}})
+      .attr('class','civ-path')
+      .attr('d', gpath)
+      .attr('fill', c.color)
+      .attr('fill-opacity', op)
+      .attr('stroke', c.color)
+      .attr('stroke-width', 1.1)
+      .attr('stroke-opacity', op * 0.9)
+      .style('cursor','pointer')
+      .style('transition','fill-opacity 0.2s, stroke-opacity 0.2s')
+      .on('mouseenter', function(ev){ showTip(ev, c); })
+      .on('mousemove',  function(ev){ moveTip(ev); })
+      .on('mouseleave', hideTip)
+      .on('click', ()=> toggleCiv(c.id));
+  });
+}
+
+function showTip(ev, c){
+  document.getElementById('tt-name').textContent  = c.name;
+  document.getElementById('tt-dates').textContent = `${fmtYear(c.start)} – ${fmtYear(c.end)}`;
+  document.getElementById('tt-desc').textContent  = c.desc;
+  tooltip.classList.add('show');
+  moveTip(ev);
+}
+function moveTip(ev){
+  let x = ev.clientX + 15, y = ev.clientY - 12;
+  if(x + 240 > window.innerWidth) x = ev.clientX - 245;
+  if(y + 120 > window.innerHeight) y = ev.clientY - 125;
+  tooltip.style.left = x+'px';
+  tooltip.style.top  = y+'px';
+}
+function hideTip(){ tooltip.classList.remove('show'); }
+
+function toggleCiv(id){
+  selCivId = selCivId === id ? null : id;
+  renderCivs();
+  renderSidebar();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SIDEBAR
+// ═══════════════════════════════════════════════════════════
+function renderSidebar(){
+  const list = document.getElementById('civ-list');
+  const active = CIVS.filter(c=> year >= c.start && year <= c.end)
+                     .sort((a,b)=> a.start - b.start);
+  if(!active.length){
+    list.innerHTML='<div class="no-civs">No active civilizations</div>';
+    return;
+  }
+  list.innerHTML = active.map(c=>{
+    const cls = selCivId === c.id ? ' sel' : (selCivId && selCivId !== c.id ? ' dim':'');
+    return `<div class="civ-item${cls}" data-id="${c.id}">
+      <div class="civ-swatch" style="background:${c.color}"></div>
+      <div class="civ-info">
+        <div class="civ-name">${c.name}</div>
+        <div class="civ-year">${fmtYear(c.start)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.civ-item').forEach(el=>{
+    el.addEventListener('click',()=> toggleCiv(el.dataset.id));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  YEAR AXIS
+// ═══════════════════════════════════════════════════════════
+const axisSvgEl = document.getElementById('axis-svg');
+const axisSvg   = d3.select('#axis-svg');
+let axisW = 0;
+
+function renderAxis(){
+  axisSvg.selectAll('*').remove();
+  axisW = axisSvgEl.getBoundingClientRect().width || window.innerWidth;
+  const h   = axisSvgEl.getBoundingClientRect().height || 36;
+  const cx  = axisW / 2;
+  const ppy = axisW / AXIS_WIN; // px per year
+
+  const lo = year - AXIS_WIN/2, hi = year + AXIS_WIN/2;
+
+  // baseline
+  axisSvg.append('line')
+    .attr('x1',0).attr('y1',h).attr('x2',axisW).attr('y2',h)
+    .attr('stroke','#162540').attr('stroke-width',1);
+
+  // ticks
+  const minor=10, major=100;
+  const start = Math.ceil(lo/minor)*minor;
+  for(let y2=start; y2<=hi; y2+=minor){
+    const x = cx + (y2 - year)*ppy;
+    const isMaj = y2 % major === 0;
+    axisSvg.append('line')
+      .attr('x1',x).attr('y1',h - (isMaj?16:7))
+      .attr('x2',x).attr('y2',h)
+      .attr('stroke', isMaj?'#3a608a':'#1e3454')
+      .attr('stroke-width', isMaj?1.4:0.7);
+    if(isMaj){
+      axisSvg.append('text')
+        .attr('x',x).attr('y',h-20)
+        .attr('text-anchor','middle')
+        .attr('fill','#2a4a6a').attr('font-size','9px')
+        .text(fmtYear(y2));
+    }
+  }
+
+  // current year marker
+  axisSvg.append('line')
+    .attr('x1',cx).attr('y1',0)
+    .attr('x2',cx).attr('y2',h)
+    .attr('stroke','#f0c060').attr('stroke-width',2).attr('opacity',0.7);
+}
+
+// ── drag ──
+let dragging=false, dragX0=0, dragY0=0;
+const topBar = document.getElementById('top-bar');
+
+function startDrag(clientX){
+  dragging = true; dragX0 = clientX; dragY0 = year;
+  topBar.classList.add('dragging');
+}
+function doDrag(clientX){
+  if(!dragging) return;
+  const ppy = (axisW||window.innerWidth) / AXIS_WIN;
+  const dy  = -Math.round((clientX - dragX0) / ppy);
+  setYear(clamp(dragY0 + dy, MIN_Y, MAX_Y));
+}
+function endDrag(){ dragging=false; topBar.classList.remove('dragging'); }
+
+topBar.addEventListener('mousedown', e=>{ startDrag(e.clientX); e.preventDefault(); });
+document.addEventListener('mousemove', e=>{ if(dragging) doDrag(e.clientX); });
+document.addEventListener('mouseup', endDrag);
+
+topBar.addEventListener('touchstart', e=>{ startDrag(e.touches[0].clientX); e.preventDefault(); },{passive:false});
+document.addEventListener('touchmove', e=>{ if(dragging) doDrag(e.touches[0].clientX); },{passive:false});
+document.addEventListener('touchend', endDrag);
+
+// keyboard
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.key==='ArrowRight') setYear(clamp(year+(e.shiftKey?100:10), MIN_Y, MAX_Y));
+  else if(e.key==='ArrowLeft')  setYear(clamp(year-(e.shiftKey?100:10), MIN_Y, MAX_Y));
+  else if(e.key===' '){ togglePlay(); e.preventDefault(); }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  EVENTS PANEL
+// ═══════════════════════════════════════════════════════════
+const evSvgEl = document.getElementById('events-svg');
+const evSvg   = d3.select('#events-svg');
+const evPopup = document.getElementById('ev-popup');
+
+function renderEvents(){
+  evSvg.selectAll('*').remove();
+  const W   = evSvgEl.getBoundingClientRect().width  || 800;
+  const H   = evSvgEl.getBoundingClientRect().height || 160;
+  const cx  = W/2, cy = H/2;
+  const ppy = W / (EV_WIN*2); // px per year
+
+  // bg
+  evSvg.append('rect').attr('width',W).attr('height',H).attr('fill','#060d18');
+
+  // axis line
+  evSvg.append('line')
+    .attr('x1',0).attr('y1',cy).attr('x2',W).attr('y2',cy)
+    .attr('stroke','#162540').attr('stroke-width',1);
+
+  // year labels on axis
+  const tickInterval = 50;
+  const lo = year-EV_WIN, hi = year+EV_WIN;
+  const ts  = Math.ceil(lo/tickInterval)*tickInterval;
+  for(let t=ts; t<=hi; t+=tickInterval){
+    const x = cx+(t-year)*ppy;
+    evSvg.append('line')
+      .attr('x1',x).attr('y1',cy-4).attr('x2',x).attr('y2',cy+4)
+      .attr('stroke','#162540').attr('stroke-width',0.8);
+    evSvg.append('text')
+      .attr('x',x).attr('y',cy+14).attr('text-anchor','middle')
+      .attr('fill','#1e3050').attr('font-size','8px')
+      .text(fmtYear(t));
+  }
+
+  // current year line
+  evSvg.append('line')
+    .attr('x1',cx).attr('y1',0).attr('x2',cx).attr('y2',H)
+    .attr('stroke','#f0c060').attr('stroke-width',1.5)
+    .attr('stroke-dasharray','5,4').attr('opacity',0.5);
+
+  // filter events
+  const vis = EVENTS.filter(e=>{
+    if(Math.abs(e.yr - year) > EV_WIN) return false;
+    if(!activeCats.has(e.cat)) return false;
+    if(searchQ){
+      const q=searchQ.toLowerCase();
+      return e.title.toLowerCase().includes(q)||e.cat.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  vis.forEach((e, i)=>{
+    const x    = cx + (e.yr - year)*ppy;
+    const above= i%2===0;
+    const col  = CAT_COLOR[e.cat]||'#888';
+    const stemY= above ? cy-12 : cy+12;
+    const lblY = above ? cy-22 : cy+28;
+
+    evSvg.append('line')
+      .attr('x1',x).attr('y1',cy).attr('x2',x).attr('y2',stemY)
+      .attr('stroke',col).attr('stroke-width',1).attr('opacity',0.55);
+
+    const dot = evSvg.append('circle')
+      .attr('cx',x).attr('cy',cy).attr('r',5)
+      .attr('fill',col).attr('stroke','#060d18').attr('stroke-width',1.5)
+      .style('cursor','pointer');
+
+    const lbl = e.title.length>22 ? e.title.slice(0,20)+'…' : e.title;
+    evSvg.append('text')
+      .attr('x',x).attr('y',lblY)
+      .attr('text-anchor','middle')
+      .attr('fill','#6080a0').attr('font-size','8.5px')
+      .text(lbl);
+
+    dot.on('click', function(ev){ showEvPopup(ev, e); });
+  });
+}
+
+function showEvPopup(ev, e){
+  const col = CAT_COLOR[e.cat]||'#888';
+  document.getElementById('ep-cat').textContent   = e.cat;
+  document.getElementById('ep-cat').style.background = col+'33';
+  document.getElementById('ep-cat').style.color      = col;
+  document.getElementById('ep-title').textContent = e.title;
+  document.getElementById('ep-year').textContent  = fmtYear(e.yr);
+  document.getElementById('ep-desc').textContent  = e.desc;
+  evPopup.style.display='block';
+  let x=ev.clientX+14, y=ev.clientY-100;
+  if(x+320>window.innerWidth)  x=ev.clientX-325;
+  if(y<4) y=4;
+  if(y+200>window.innerHeight) y=window.innerHeight-205;
+  evPopup.style.left=x+'px';
+  evPopup.style.top =y+'px';
+}
+
+document.getElementById('ev-popup-close').addEventListener('click',()=>{
+  evPopup.style.display='none';
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') evPopup.style.display='none';
+});
+
+// ═══════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════
+
+// play / pause
+const playBtn = document.getElementById('play-btn');
+function togglePlay(){
+  playing = !playing;
+  playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  playing ? startPlay() : stopPlay();
+}
+playBtn.addEventListener('click', togglePlay);
+
+function startPlay(){
+  stopPlay();
+  const msPerTick = 120;
+  const yearsPerTick = speed;
+  playTimer = setInterval(()=>{
+    if(year >= MAX_Y){ togglePlay(); return; }
+    setYear(Math.min(year+yearsPerTick, MAX_Y));
+  }, msPerTick);
+}
+function stopPlay(){
+  if(playTimer){ clearInterval(playTimer); playTimer=null; }
+}
+
+// speed buttons
+document.querySelectorAll('[data-spd]').forEach(btn=>{
+  btn.addEventListener('click', function(){
+    speed = +this.dataset.spd;
+    document.querySelectorAll('[data-spd]').forEach(b=>b.classList.remove('on'));
+    this.classList.add('on');
+    if(playing){ stopPlay(); startPlay(); }
+  });
+});
+
+// category filter
+document.querySelectorAll('.cat-btn').forEach(btn=>{
+  btn.addEventListener('click', function(){
+    const c=this.dataset.cat;
+    if(activeCats.has(c)){ activeCats.delete(c); this.classList.remove('on'); }
+    else { activeCats.add(c); this.classList.add('on'); }
+    renderEvents();
+  });
+});
+
+// search
+document.getElementById('search-input').addEventListener('input', function(){
+  searchQ = this.value.trim();
+  renderEvents();
+});
+
+// ═══════════════════════════════════════════════════════════
+//  MASTER UPDATE
+// ═══════════════════════════════════════════════════════════
+function setYear(y){
+  year = Math.round(y);
+  document.getElementById('year-display').textContent = fmtYear(year);
+  renderAxis();
+  renderCivs();
+  renderSidebar();
+  renderEvents();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+function init(){
+  initMap();
+  setYear(1500);
+}
+window.addEventListener('load', init);
+
+// responsive resize
+let rszTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(rszTimer);
+  rszTimer = setTimeout(()=>{
+    initMap();
+    setYear(year);
+  }, 180);
+});
+</script>
+</body>
+</html>
